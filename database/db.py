@@ -1,0 +1,304 @@
+import sqlite3
+import os
+from datetime import datetime
+
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fitsense.db")
+
+def get_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # 1. users
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+      user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      age INTEGER,
+      weight_kg REAL,
+      height_cm REAL,
+      fitness_goal TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+    
+    # 2. sessions
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sessions (
+      session_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
+      date TEXT NOT NULL,
+      start_time TIMESTAMP,
+      end_time TIMESTAMP,
+      total_duration_mins REAL,
+      total_sets INTEGER DEFAULT 0,
+      total_reps INTEGER DEFAULT 0,
+      avg_form_score REAL,
+      total_calories_burned REAL,
+      notes TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(user_id)
+    );
+    """)
+    
+    # 3. exercises
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS exercises (
+      exercise_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL,
+      exercise_key TEXT NOT NULL,
+      exercise_name TEXT NOT NULL,
+      total_sets INTEGER DEFAULT 0,
+      total_reps INTEGER DEFAULT 0,
+      avg_form_score REAL,
+      calories_burned REAL,
+      FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+    );
+    """)
+    
+    # 4. sets
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sets (
+      set_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      exercise_id INTEGER NOT NULL,
+      set_number INTEGER NOT NULL,
+      reps_counted INTEGER DEFAULT 0,
+      weight_kg REAL DEFAULT 0,
+      rpe INTEGER,
+      avg_form_score REAL,
+      pain_flag BOOLEAN DEFAULT 0,
+      pain_location TEXT,
+      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (exercise_id) REFERENCES exercises(exercise_id)
+    );
+    """)
+    
+    # 5. recovery_logs
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS recovery_logs (
+      log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
+      date TEXT NOT NULL,
+      sleep_hours REAL,
+      sleep_quality INTEGER,
+      stress_level INTEGER,
+      soreness_level INTEGER,
+      hrv INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(user_id)
+    );
+    """)
+    
+    # 6. fitness_scores
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS fitness_scores (
+      score_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
+      date TEXT NOT NULL,
+      recovery_score REAL,
+      fitness_score REAL,
+      fatigue_score REAL,
+      recommendation TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(user_id)
+    );
+    """)
+    
+    # 7. daily_nutrition
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS daily_nutrition (
+      entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
+      date TEXT NOT NULL,
+      calories_consumed REAL,
+      calories_burned_exercise REAL,
+      calories_burned_bmr REAL,
+      net_calories REAL,
+      protein_g REAL,
+      carbs_g REAL,
+      fat_g REAL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(user_id)
+    );
+    """)
+    
+    # Check if we have at least one user, insert default Athlete if none
+    cursor.execute("SELECT COUNT(*) as count FROM users")
+    if cursor.fetchone()["count"] == 0:
+        cursor.execute("""
+        INSERT INTO users (name, age, weight_kg, height_cm, fitness_goal)
+        VALUES ('Athlete', 28, 75.0, 180.0, 'Strength and Form Improvement')
+        """)
+        
+    conn.commit()
+    conn.close()
+
+# Helper methods for API operations
+
+def get_recent_sessions(limit=10):
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Query summary of last 'limit' sessions
+    cursor.execute("""
+        SELECT 
+            s.session_id, 
+            s.date, 
+            s.total_sets, 
+            s.total_reps, 
+            s.avg_form_score,
+            (SELECT GROUP_CONCAT(exercise_name, ', ') FROM exercises WHERE session_id = s.session_id) as exercises_done
+        FROM sessions s
+        ORDER BY s.session_id DESC
+        LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_session_details(session_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Get session metadata
+    cursor.execute("SELECT * FROM sessions WHERE session_id = ?", (session_id,))
+    session = cursor.fetchone()
+    if not session:
+        conn.close()
+        return None
+    
+    # Get exercises in session
+    cursor.execute("SELECT * FROM exercises WHERE session_id = ?", (session_id,))
+    exercises = [dict(e) for e in cursor.fetchall()]
+    
+    # Get sets for each exercise
+    for exercise in exercises:
+        cursor.execute("SELECT * FROM sets WHERE exercise_id = ? ORDER BY set_number ASC", (exercise["exercise_id"],))
+        exercise["sets"] = [dict(s) for s in cursor.fetchall()]
+        
+    conn.close()
+    
+    result = dict(session)
+    result["exercises"] = exercises
+    return result
+
+def create_in_progress_session():
+    conn = get_connection()
+    cursor = conn.cursor()
+    now_str = datetime.now().isoformat()
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    
+    cursor.execute("""
+        INSERT INTO sessions (user_id, date, start_time, end_time, total_duration_mins, total_sets, total_reps, avg_form_score, total_calories_burned, notes)
+        VALUES (1, ?, ?, NULL, 0.0, 0, 0, 0.0, 0.0, '')
+    """, (today_str, now_str))
+    session_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return session_id
+
+def get_or_create_exercise(session_id, exercise_key, display_name):
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT exercise_id FROM exercises 
+        WHERE session_id = ? AND exercise_key = ?
+    """, (session_id, exercise_key))
+    row = cursor.fetchone()
+    
+    if row:
+        exercise_id = row["exercise_id"]
+    else:
+        cursor.execute("""
+            INSERT INTO exercises (session_id, exercise_key, exercise_name, total_sets, total_reps, avg_form_score, calories_burned)
+            VALUES (?, ?, ?, 0, 0, 0.0, 0.0)
+        """, (session_id, exercise_key, display_name))
+        exercise_id = cursor.lastrowid
+        conn.commit()
+        
+    conn.close()
+    return exercise_id
+
+def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location):
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Insert the set
+    cursor.execute("""
+        INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, rpe, avg_form_score, pain_flag, pain_location)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location))
+    
+    # Update exercise summary stats
+    cursor.execute("SELECT reps_counted, avg_form_score FROM sets WHERE exercise_id = ?", (exercise_id,))
+    all_sets = cursor.fetchall()
+    total_reps = sum(s["reps_counted"] for s in all_sets)
+    total_sets = len(all_sets)
+    avg_score = sum(s["avg_form_score"] for s in all_sets) / total_sets if total_sets > 0 else 0.0
+    
+    cursor.execute("""
+        UPDATE exercises 
+        SET total_sets = ?, total_reps = ?, avg_form_score = ?
+        WHERE exercise_id = ?
+    """, (total_sets, total_reps, avg_score, exercise_id))
+    
+    # Get session_id from exercise
+    cursor.execute("SELECT session_id FROM exercises WHERE exercise_id = ?", (exercise_id,))
+    session_id = cursor.fetchone()["session_id"]
+    
+    # Update session summary stats
+    # get all exercises under this session
+    cursor.execute("SELECT exercise_id FROM exercises WHERE session_id = ?", (session_id,))
+    ex_ids = [e["exercise_id"] for e in cursor.fetchall()]
+    
+    # get all sets for all these exercises
+    all_session_sets = []
+    for ex_id in ex_ids:
+        cursor.execute("SELECT reps_counted, avg_form_score FROM sets WHERE exercise_id = ?", (ex_id,))
+        all_session_sets.extend(cursor.fetchall())
+        
+    sess_reps = sum(s["reps_counted"] for s in all_session_sets)
+    sess_sets = len(all_session_sets)
+    sess_avg_score = sum(s["avg_form_score"] for s in all_session_sets) / sess_sets if sess_sets > 0 else 0.0
+    
+    cursor.execute("""
+        UPDATE sessions 
+        SET total_sets = ?, total_reps = ?, avg_form_score = ?
+        WHERE session_id = ?
+    """, (sess_sets, sess_reps, sess_avg_score, session_id))
+    
+    conn.commit()
+    conn.close()
+
+def finalize_session(session_id, notes=""):
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Get session details to find start_time
+    cursor.execute("SELECT start_time FROM sessions WHERE session_id = ?", (session_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return None
+    
+    start_time_str = row["start_time"]
+    start_time = datetime.fromisoformat(start_time_str)
+    end_time = datetime.now()
+    duration_mins = max(0.1, (end_time - start_time).total_seconds() / 60.0)
+    
+    cursor.execute("""
+        UPDATE sessions 
+        SET end_time = ?, total_duration_mins = ?, notes = ?
+        WHERE session_id = ?
+    """, (end_time.isoformat(), duration_mins, notes, session_id))
+    
+    conn.commit()
+    
+    # Retrieve updated session
+    cursor.execute("SELECT * FROM sessions WHERE session_id = ?", (session_id,))
+    final_session = dict(cursor.fetchone())
+    conn.close()
+    
+    return final_session
