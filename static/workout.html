@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitSense AI — Workout</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💪</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Nav injected here -->
+    <div id="navPlaceholder"></div>
+
+    <main class="dashboard-grid">
+      <!-- Left Column: Video stream canvas -->
+      <section class="panel video-panel">
+        <div class="panel-header">
+          <h2>Live Stream</h2>
+          <span class="status-indicator" id="streamStatus">Disconnected</span>
+        </div>
+        <div class="canvas-wrapper">
+          <video id="video" autoplay playsinline style="display: none;"></video>
+          <canvas id="canvas" width="640" height="480"></canvas>
+          <div class="canvas-placeholder" id="canvasPlaceholder">
+            <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+            </svg>
+            <p>Click "Start Workout" to open webcam</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Stats & Controls -->
+      <section class="panel control-panel">
+        <div class="control-header">
+          <h2>Workout Controls</h2>
+        </div>
+        <div class="control-group">
+          <label for="exerciseSelect">Select Exercise</label>
+          <select id="exerciseSelect" class="form-select">
+            <option value="" disabled selected>Loading exercises...</option>
+          </select>
+        </div>
+        <div class="action-buttons">
+          <button id="startBtn" class="btn btn-success" disabled>Start Workout</button>
+          <button id="endSetBtn" class="btn btn-warning" disabled>End Set</button>
+          <button id="endSessionBtn" class="btn btn-danger" disabled>End Session</button>
+        </div>
+
+        <div class="stats-grid">
+          <!-- Rep / Hold Counter -->
+          <div class="stat-card rep-card">
+            <span class="stat-label" id="repLabel">REPS</span>
+            <span class="stat-value" id="repCount">0</span>
+          </div>
+          <!-- Stage Indicator -->
+          <div class="stat-card stage-card">
+            <span class="stat-label">STAGE</span>
+            <span class="stat-value" id="stageLabel">--</span>
+          </div>
+        </div>
+
+        <!-- Form Score Bar -->
+        <div class="form-score-section">
+          <div class="form-score-header">
+            <span>Session Form Score</span>
+            <span id="formScorePercent" class="score-green">100%</span>
+          </div>
+          <div class="progress-bar-container">
+            <div id="formScoreBar" class="progress-bar bar-green" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Feedback Badges -->
+        <div class="feedback-section">
+          <h3>Real-time Feedback</h3>
+          <div id="feedbackContainer" class="feedback-list">
+            <div class="feedback-badge badge-green">Ready to begin!</div>
+          </div>
+        </div>
+
+        <!-- Live Joint Angles -->
+        <div class="angles-section">
+          <h3>Live Angles</h3>
+          <div id="anglesContainer" class="angles-grid">
+            <span class="angle-item-placeholder">No pose detected</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Log Set Modal -->
+    <div id="logSetModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Log Completed Set</h2>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label>Exercise</label>
+              <input type="text" id="modalExercise" readonly class="form-input-readonly">
+            </div>
+            <div class="form-group col-3">
+              <label id="modalRepsLabel">Reps</label>
+              <input type="number" id="modalReps" min="0" step="1" required class="form-input">
+            </div>
+            <div class="form-group col-3">
+              <label>Form Score</label>
+              <input type="text" id="modalScore" readonly class="form-input-readonly">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="weightInput">Weight (kg)</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="number" id="weightInput" min="0" step="0.5" value="0" class="form-input" style="flex: 1;">
+              <select id="weightModeSelect" class="form-input" style="width: 120px;">
+                <option value="total">Total</option>
+                <option value="per_side">Per Side</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="setDurationInput">Set Duration (seconds) <span style="font-size: 0.85em; color: #888;">(optional)</span></label>
+            <input type="number" id="setDurationInput" min="0" step="0.1" placeholder="e.g. 30" class="form-input">
+          </div>
+          <div class="form-group">
+            <div class="slider-header">
+              <label for="rpeInput">Rate of Perceived Exertion (RPE: 1-10)</label>
+              <span id="rpeValue">7</span>
+            </div>
+            <input type="range" id="rpeInput" min="1" max="10" value="7" class="form-slider">
+            <div class="slider-labels">
+              <span>Easy</span>
+              <span>Moderate</span>
+              <span>Max Effort</span>
+            </div>
+          </div>
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="painCheckbox">
+            <label for="painCheckbox">Did you experience pain during this set?</label>
+          </div>
+          <div class="form-group" id="painLocationGroup" style="display: none;">
+            <label for="painLocationInput">Pain Location / Details</label>
+            <input type="text" id="painLocationInput" placeholder="e.g. Lower back, right knee" class="form-input">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelSetBtn" class="btn btn-secondary">Discard Set</button>
+          <button id="saveSetBtn" class="btn btn-success">Save Set &amp; Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Session Summary Modal -->
+    <div id="summaryModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Workout Session Summary</h2>
+        </div>
+        <div class="modal-body">
+          <div class="summary-stats">
+            <div class="summary-stat-item">
+              <span class="summary-stat-val" id="sumSets">0</span>
+              <span class="summary-stat-lbl">Sets</span>
+            </div>
+            <div class="summary-stat-item">
+              <span class="summary-stat-val" id="sumReps">0</span>
+              <span class="summary-stat-lbl" id="sumRepsLabel">Reps</span>
+            </div>
+            <div class="summary-stat-item">
+              <span class="summary-stat-val" id="sumCalories">0</span>
+              <span class="summary-stat-lbl">Calories</span>
+            </div>
+            <div class="summary-stat-item">
+              <span class="summary-stat-val" id="sumScore">0%</span>
+              <span class="summary-stat-lbl">Avg Form</span>
+            </div>
+          </div>
+          <div class="form-group" style="margin-top: 20px;">
+            <label for="sessionNotes">Workout Notes / Reflections</label>
+            <textarea id="sessionNotes" rows="3" placeholder="How did it feel today? Great energy, stiff joints?" class="form-textarea"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="saveSessionBtn" class="btn btn-success">Close &amp; Save Session</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app-shared.js"></script>
+  <script src="workout.js"></script>
+</body>
+</html>

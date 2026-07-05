@@ -539,11 +539,39 @@ async def websocket_workout(websocket: WebSocket):
             pass
 
 @app.get("/")
-def read_index(request: Request):
+def read_root(request: Request):
     user_id = request.session.get("user_id")
     if not user_id:
         return RedirectResponse(url="/login.html")
-    return FileResponse("static/index.html")
+    return RedirectResponse(url="/overview")
+
+@app.get("/overview")
+def read_overview(request: Request):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login.html")
+    return FileResponse("static/overview.html")
+
+@app.get("/workout")
+def read_workout(request: Request):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login.html")
+    return FileResponse("static/workout.html")
+
+@app.get("/history")
+def read_history(request: Request):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login.html")
+    return FileResponse("static/history.html")
+
+@app.get("/profile-page")
+def read_profile_page(request: Request):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login.html")
+    return FileResponse("static/profile.html")
 
 @app.get("/admin")
 def read_admin(request: Request):
@@ -553,7 +581,7 @@ def read_admin(request: Request):
     user = db.get_user_by_id(user_id)
     if not user or not user.get("is_admin"):
         return HTMLResponse("<html><body><h1>Access Denied</h1><p>You must be an admin to view this page.</p></body></html>", status_code=403)
-    return FileResponse("static/admin.html")
+    return FileResponse("static/admin/admin.html")
 
 # Mount static folder last
 app.mount("/", StaticFiles(directory="static"), name="static")

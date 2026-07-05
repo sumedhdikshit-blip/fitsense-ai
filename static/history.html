@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitSense AI — History</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💪</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Nav injected here -->
+    <div id="navPlaceholder"></div>
+
+    <!-- Session History Table -->
+    <section class="panel history-panel">
+      <div class="panel-header">
+        <h2>Session History</h2>
+      </div>
+      <div class="table-responsive">
+        <table class="history-table" id="historyTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Exercises Done</th>
+              <th>Sets Logged</th>
+              <th>Total Reps/Time</th>
+              <th>Calories Burned</th>
+              <th>Avg Form Score</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr>
+              <td colspan="7" style="text-align: center; color: #aaaaaa;">Loading history...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Session Detail Modal -->
+  <div id="detailModal" class="modal-overlay">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <h2 id="detailTitle">Session Details</h2>
+        <button class="close-btn" id="closeDetailBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="session-meta-summary">
+          <div><strong>Date:</strong> <span id="detDate"></span></div>
+          <div><strong>Duration:</strong> <span id="detDuration"></span> mins</div>
+          <div><strong>Calories Burned:</strong> <span id="detCalories"></span> kcal</div>
+          <div><strong>Avg Form Score:</strong> <span id="detForm"></span>%</div>
+          <div><strong>Notes:</strong> <span id="detNotes"></span></div>
+        </div>
+        <h3>Completed Sets</h3>
+        <div class="table-responsive">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Set #</th>
+                <th>Exercise</th>
+                <th>Reps/Hold Time</th>
+                <th>Weight (kg)</th>
+                <th>RPE</th>
+                <th>Form Score</th>
+                <th>Pain Flag</th>
+              </tr>
+            </thead>
+            <tbody id="detailSetsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app-shared.js"></script>
+  <script src="history.js"></script>
+</body>
+</html>

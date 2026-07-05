@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login - FitSense AI</title>
+  <title>FitSense AI — Login</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💪</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -221,9 +222,15 @@
     const loginForm = document.getElementById('loginForm');
     const errorBanner = document.getElementById('errorBanner');
 
+    const submitBtn = loginForm.querySelector('button[type="submit"]');
+
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorBanner.style.display = 'none';
+
+      // Prevent double-submit
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Logging in…';
 
       const username = document.getElementById('username').value;
       const password = document.getElementById('password').value;
@@ -237,17 +244,23 @@
 
         if (response.ok) {
           const data = await response.json();
-          // Successful login, redirect to dashboard
-          window.location.href = '/';
+          // Redirect admins to the admin dashboard, regular users to the main app
+          // Button intentionally left disabled — page is navigating away
+          window.location.href = data.is_admin ? '/admin' : '/';
         } else {
           const err = await response.json();
           errorBanner.textContent = err.detail || 'Invalid username or password.';
           errorBanner.style.display = 'block';
+          // Re-enable so the user can correct credentials and retry
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign In';
         }
       } catch (error) {
         console.error('Login error:', error);
         errorBanner.textContent = 'Network error. Please try again later.';
         errorBanner.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
       }
     });
   </script>

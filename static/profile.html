@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitSense AI — Profile</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💪</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .profile-page-card {
+      background-color: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      padding: 32px;
+      max-width: 640px;
+    }
+    .profile-page-card h2 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 24px;
+      color: var(--text-main);
+    }
+    .profile-save-row {
+      margin-top: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .profile-saved-msg {
+      color: var(--accent-color);
+      font-size: 0.9rem;
+      font-weight: 600;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Nav injected here -->
+    <div id="navPlaceholder"></div>
+
+    <div class="profile-page-card">
+      <h2>Profile Settings</h2>
+
+      <div class="form-group">
+        <label for="profileName">Name</label>
+        <input type="text" id="profileName" placeholder="Athlete" class="form-input">
+      </div>
+      <div class="form-row">
+        <div class="form-group col-6">
+          <label for="profileAge">Age (Years)</label>
+          <input type="number" id="profileAge" min="1" max="120" class="form-input">
+        </div>
+        <div class="form-group col-6">
+          <label for="profileSex">Biological Sex</label>
+          <select id="profileSex" class="form-select">
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="unspecified">Unspecified / Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group col-6">
+          <label for="profileWeight">Weight (kg)</label>
+          <input type="number" id="profileWeight" step="0.1" min="10" max="500" class="form-input">
+        </div>
+        <div class="form-group col-6">
+          <label for="profileHeight">Height (cm)</label>
+          <input type="number" id="profileHeight" step="0.5" min="50" max="300" class="form-input">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="profileGoal">Fitness Goal</label>
+        <input type="text" id="profileGoal" placeholder="e.g. Fat loss, build muscle" class="form-input">
+      </div>
+
+      <div class="profile-save-row">
+        <button id="saveProfileBtn" class="btn btn-success">Save Profile Settings</button>
+        <span class="profile-saved-msg" id="profileSavedMsg">✓ Saved!</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="app-shared.js"></script>
+  <script src="profile.js"></script>
+</body>
+</html>

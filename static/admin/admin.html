@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitSense AI — Admin</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💪</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <!-- Top Navbar -->
+    <header class="navbar">
+      <div class="navbar-brand">
+        <span class="brand-title">FitSense <span class="brand-sub">AI</span></span>
+        <span class="nav-separator">|</span>
+        <span class="brand-context">Admin Dashboard</span>
+      </div>
+      <div class="navbar-actions">
+        <a href="/" class="btn btn-nav">
+          <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+          Home Tracker
+        </a>
+        <button id="logoutBtn" class="btn btn-danger">
+          <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Log Out
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="container">
+      <!-- Stat Cards -->
+      <section class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-icon bg-blue">
+            <svg class="icon-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </div>
+          <div class="metric-content">
+            <span class="metric-label">Total Registered Users</span>
+            <span class="metric-value" id="totalUsersVal">--</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon bg-green">
+            <svg class="icon-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
+            </svg>
+          </div>
+          <div class="metric-content">
+            <span class="metric-label">Total Active Sessions</span>
+            <span class="metric-value" id="totalSessionsVal">--</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon bg-purple">
+            <svg class="icon-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="metric-content">
+            <span class="metric-label">Last Activity Logged</span>
+            <span class="metric-value" id="lastActivityVal">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Users Admin Table -->
+      <section class="panel">
+        <div class="panel-header">
+          <h2>User Activity Diagnostic Table</h2>
+          <p>Global view of user logins, registered accounts, and workout statistics</p>
+        </div>
+        <div class="table-wrapper">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>User ID</th>
+                <th>Username</th>
+                <th>Display Name</th>
+                <th>Permissions</th>
+                <th>Session Count</th>
+                <th>Last Active Date</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <tr>
+                <td colspan="6" class="table-loading">Querying system diagnostics...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/admin/admin.js" defer></script>
+</body>
+</html>

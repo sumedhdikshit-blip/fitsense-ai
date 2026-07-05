@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitSense AI — Overview</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💪</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Profile Setup Alert Banner -->
+  <div class="setup-banner" id="setupBanner" style="display: none;">
+    <div class="setup-banner-content">
+      <svg class="setup-banner-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+      <span>Set your profile (Weight, Height, Age, Gender) for accurate BMR and calorie calculations.</span>
+    </div>
+    <button class="btn btn-warning btn-sm" id="bannerSetupBtn" onclick="window.location.href='/profile-page'">Configure Profile</button>
+  </div>
+
+  <div class="app-container">
+    <!-- Nav injected here -->
+    <div id="navPlaceholder"></div>
+
+    <!-- Daily Dashboard Board -->
+    <section class="dashboard-grid daily-dashboard-section">
+      <!-- Left Panel: Weight Tracking -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Weight History</h2>
+          <div class="range-selector">
+            <button class="btn btn-sm btn-range active" data-days="7">7D</button>
+            <button class="btn btn-sm btn-range" data-days="30">30D</button>
+            <button class="btn btn-sm btn-range" data-days="90">90D</button>
+            <button class="btn btn-sm btn-range" data-days="all">ALL</button>
+          </div>
+        </div>
+        <div class="weight-chart-container">
+          <canvas id="weightChart" width="550" height="220"></canvas>
+        </div>
+        <div class="weight-summary-bar">
+          <div class="weight-summary-item">
+            <span class="summary-lbl">Current Weight</span>
+            <span class="summary-val" id="currentWeightDisplay">75.0 kg</span>
+          </div>
+          <div class="weight-summary-item">
+            <span class="summary-lbl">Weight Change</span>
+            <span class="summary-val" id="weightChangeDisplay">-- kg</span>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="quickWeightBtn">Log Weight</button>
+        </div>
+      </div>
+
+      <!-- Right Panel: Calorie & Macro Balance Board -->
+      <div class="panel calorie-balance-panel">
+        <div class="panel-header">
+          <h2>Daily Calorie Balance</h2>
+          <div class="calorie-actions">
+            <button class="btn btn-secondary btn-sm" id="logFoodBtn">Log Food</button>
+            <button class="btn btn-secondary btn-sm" id="logCardioBtn">Log Cardio</button>
+          </div>
+        </div>
+
+        <div class="net-calories-container">
+          <span class="net-cal-val" id="netCaloriesDisplay">0</span>
+          <span class="net-cal-lbl">Net Calories (Today)</span>
+        </div>
+
+        <div class="calorie-details-grid">
+          <div class="cal-detail-card consumed-card">
+            <span class="lbl">Consumed</span>
+            <span class="val" id="calsConsumed">0 kcal</span>
+          </div>
+          <div class="cal-detail-card burned-card">
+            <span class="lbl">Exercise Burned</span>
+            <span class="val" id="calsBurned">0 kcal</span>
+          </div>
+          <div class="cal-detail-card bmr-card">
+            <span class="lbl">BMR (Resting)</span>
+            <span class="val" id="calsBmr">0 kcal</span>
+            <span class="badge-estimate">Estimate</span>
+          </div>
+          <div class="cal-detail-card tef-card">
+            <span class="lbl">TEF (Digestion)</span>
+            <span class="val" id="calsTef">0 kcal</span>
+          </div>
+        </div>
+
+        <!-- Today's Macros Bar -->
+        <div class="macros-progress-container">
+          <div class="macro-progress-header">
+            <span>Daily Macros</span>
+            <span class="macro-vals-summary">
+              P: <strong id="macroProtein">0g</strong> | C: <strong id="macroCarbs">0g</strong> | F: <strong id="macroFat">0g</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Quick Weight Modal -->
+  <div id="weightModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Log Weight</h2>
+        <button class="close-btn" id="closeWeightBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="quickWeightInput">Weight (kg)</label>
+          <input type="number" id="quickWeightInput" step="0.1" min="10" max="500" class="form-input">
+        </div>
+        <div class="form-group">
+          <label for="quickWeightDate">Date</label>
+          <input type="date" id="quickWeightDate" class="form-input">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="saveWeightBtn" class="btn btn-success">Save Entry</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log Food / Nutrition Modal -->
+  <div id="foodModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Log Food Consumption</h2>
+        <button class="close-btn" id="closeFoodBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="foodDate">Date</label>
+          <input type="date" id="foodDate" class="form-input">
+        </div>
+        <div class="form-group">
+          <label for="foodCalories">Total Calories (kcal)</label>
+          <input type="number" id="foodCalories" min="0" placeholder="e.g. 650" class="form-input">
+        </div>
+        <div class="form-row">
+          <div class="form-group col-3">
+            <label for="foodProtein">Protein (g)</label>
+            <input type="number" id="foodProtein" min="0" value="0" class="form-input">
+          </div>
+          <div class="form-group col-3">
+            <label for="foodCarbs">Carbs (g)</label>
+            <input type="number" id="foodCarbs" min="0" value="0" class="form-input">
+          </div>
+          <div class="form-group col-3">
+            <label for="foodFat">Fat (g)</label>
+            <input type="number" id="foodFat" min="0" value="0" class="form-input">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="saveFoodBtn" class="btn btn-success">Save Log</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log Cardio Modal -->
+  <div id="cardioModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Log Cardio Workout</h2>
+        <button class="close-btn" id="closeCardioBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Mode Tabs -->
+        <div class="cardio-tabs">
+          <button class="cardio-tab-btn active" id="tabDurationBtn">Estimate by Duration</button>
+          <button class="cardio-tab-btn" id="tabDirectBtn">Log Direct Calories</button>
+        </div>
+        <div class="form-group">
+          <label for="cardioDate">Date</label>
+          <input type="date" id="cardioDate" class="form-input">
+        </div>
+        <!-- Mode 1: Duration estimation panel -->
+        <div id="panelDuration">
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label for="cardioPresetSelect">Activity Type</label>
+              <select id="cardioPresetSelect" class="form-select">
+                <option value="Running">Running (Estimated MET 9.8)</option>
+                <option value="Cycling">Cycling (Estimated MET 7.5)</option>
+                <option value="Swimming">Swimming (Estimated MET 7.0)</option>
+                <option value="Walking">Walking (Estimated MET 3.5)</option>
+                <option value="Sports">Active Sports (Estimated MET 8.0)</option>
+                <option value="Other">Other (Custom MET)</option>
+              </select>
+            </div>
+            <div class="form-group col-6">
+              <label for="cardioDuration">Duration (Minutes)</label>
+              <input type="number" id="cardioDuration" min="1" value="30" class="form-input">
+            </div>
+          </div>
+          <div class="form-group" id="customMetGroup" style="display: none;">
+            <label for="cardioCustomMet">Custom MET Value</label>
+            <input type="number" id="cardioCustomMet" step="0.1" value="5.0" class="form-input">
+          </div>
+          <div class="cardio-estimation-box">
+            <span class="est-lbl">Estimated Calorie Burn</span>
+            <span class="est-val" id="cardioEstimatedDisplay">0 kcal</span>
+          </div>
+          <div class="form-group checkbox-group" style="margin-top: 10px;">
+            <input type="checkbox" id="overrideCalorieCheckbox">
+            <label for="overrideCalorieCheckbox">Override estimated calories?</label>
+          </div>
+          <div class="form-group" id="overrideCalorieGroup" style="display: none;">
+            <label for="cardioOverrideVal">Burned Calories (kcal)</label>
+            <input type="number" id="cardioOverrideVal" class="form-input">
+          </div>
+        </div>
+        <!-- Mode 2: Direct Calories panel -->
+        <div id="panelDirect" style="display: none;">
+          <div class="form-group">
+            <label for="cardioActivityName">Activity Name</label>
+            <input type="text" id="cardioActivityName" placeholder="e.g. Treadmill Run, Elliptical" class="form-input">
+          </div>
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label for="cardioDirectCalories">Calories Burned (kcal)</label>
+              <input type="number" id="cardioDirectCalories" placeholder="e.g. 420" class="form-input">
+            </div>
+            <div class="form-group col-6">
+              <label for="cardioDirectDuration">Duration (Mins) - Optional</label>
+              <input type="number" id="cardioDirectDuration" placeholder="Optional" class="form-input">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="saveCardioBtn" class="btn btn-success">Save Cardio Entry</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app-shared.js"></script>
+  <script src="overview.js"></script>
+</body>
+</html>
