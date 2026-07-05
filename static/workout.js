@@ -91,6 +91,16 @@ function setupEventListeners() {
   endSetBtn.addEventListener('click', endSet);
   endSessionBtn.addEventListener('click', endSession);
 
+  // Manual entry
+  const logManualBtn = document.getElementById('logManualBtn');
+  logManualBtn.addEventListener('click', openManualEntryModal);
+  document.getElementById('closeManualBtn').addEventListener('click', closeManualEntryModal);
+  document.getElementById('cancelManualBtn').addEventListener('click', closeManualEntryModal);
+  document.getElementById('saveManualBtn').addEventListener('click', saveManualEntry);
+  document.getElementById('manualRpeInput').addEventListener('input', (e) => {
+    document.getElementById('manualRpeValue').textContent = e.target.value;
+  });
+
   painCheckbox.addEventListener('change', (e) => {
     painLocationGroup.style.display = e.target.checked ? 'flex' : 'none';
   });
@@ -434,4 +444,127 @@ function resetControls() {
   sessionReps = 0;
   sessionAvgScore = 100;
   resetSetStats();
+}
+
+// ── Manual Entry ───────────────────────────────────────────────────────────
+
+function openManualEntryModal() {
+  // Populate the manual exercise dropdown from the same source as the camera dropdown
+  const manualSel = document.getElementById('manualExerciseSelect');
+  if (exerciseSelect && exerciseSelect.children.length > 0 && manualSel.children.length <= 1) {
+    // Mirror the camera dropdown options (already grouped by category)
+    manualSel.innerHTML = '';
+    Array.from(exerciseSelect.children).forEach(child => {
+      manualSel.appendChild(child.cloneNode(true));
+    });
+  }
+
+  // Reset fields
+  document.getElementById('manualSetsCount').value = 3;
+  document.getElementById('manualRepsCount').value = 10;
+  document.getElementById('manualWeightInput').value = 0;
+  document.getElementById('manualWeightMode').value = 'total';
+  document.getElementById('manualDuration').value = '';
+  document.getElementById('manualRpeInput').value = 7;
+  document.getElementById('manualRpeValue').textContent = 7;
+  document.getElementById('manualSessionNotes').value = '';
+  const statusEl = document.getElementById('manualSaveStatus');
+  statusEl.style.display = 'none';
+  statusEl.textContent = '';
+
+  const saveBtn = document.getElementById('saveManualBtn');
+  saveBtn.disabled = false;
+  saveBtn.textContent = 'Save All Sets';
+
+  document.getElementById('manualEntryModal').classList.add('active');
+}
+
+function closeManualEntryModal() {
+  document.getElementById('manualEntryModal').classList.remove('active');
+}
+
+async function saveManualEntry() {
+  const exerciseKey = document.getElementById('manualExerciseSelect').value;
+  if (!exerciseKey) {
+    alert('Please select an exercise.');
+    return;
+  }
+
+  const setsCount   = parseInt(document.getElementById('manualSetsCount').value) || 1;
+  const repsPerSet  = parseInt(document.getElementById('manualRepsCount').value) || 0;
+  const weight      = parseFloat(document.getElementById('manualWeightInput').value) || 0.0;
+  const weightMode  = document.getElementById('manualWeightMode').value;   // 'total' | 'per_side' — stored verbatim
+  const durSec      = parseFloat(document.getElementById('manualDuration').value) || 0.0;
+  const rpe         = parseInt(document.getElementById('manualRpeInput').value) || 7;
+  const notes       = document.getElementById('manualSessionNotes').value.trim();
+
+  const saveBtn  = document.getElementById('saveManualBtn');
+  const statusEl = document.getElementById('manualSaveStatus');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+  statusEl.style.display = 'none';
+
+  try {
+    // Create a fresh session for this manual entry
+    let manualSessionId = null;
+
+    for (let i = 1; i <= setsCount; i++) {
+      const payload = {
+        session_id:    manualSessionId,   // null on first call → backend creates session
+        exercise_key:  exerciseKey,
+        set_number:    i,
+        reps_counted:  repsPerSet,
+        weight_kg:     weight,
+        weight_mode:   weightMode,        // stored exactly as chosen — no conversion
+        rpe:           rpe,
+        // avg_form_score intentionally omitted → backend default 0.0 (no camera data)
+        pain_flag:     false,
+        pain_location: '',
+        duration_seconds: durSec
+      };
+
+      const res = await fetch('/set/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to log set ' + i);
+      }
+
+      const data = await res.json();
+      manualSessionId = data.session_id;   // reuse the same session for subsequent sets
+    }
+
+    // Finalize the session so calories + stats are computed
+    const endRes = await fetch('/session/end', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: manualSessionId, notes })
+    });
+
+    if (!endRes.ok) throw new Error('Failed to finalize session.');
+
+    statusEl.style.display = 'block';
+    statusEl.style.background = 'rgba(0,200,83,0.12)';
+    statusEl.style.color = '#00c853';
+    statusEl.style.border = '1px solid rgba(0,200,83,0.3)';
+    statusEl.textContent = `✓ Logged ${setsCount} set${setsCount > 1 ? 's' : ''} of ${document.getElementById('manualExerciseSelect').selectedOptions[0].text}. Check History to verify.`;
+    saveBtn.textContent = 'Saved!';
+
+    // Keep modal open briefly so user sees confirmation, then close
+    setTimeout(closeManualEntryModal, 2500);
+
+  } catch (e) {
+    console.error('saveManualEntry error:', e);
+    statusEl.style.display = 'block';
+    statusEl.style.background = 'rgba(255,23,68,0.1)';
+    statusEl.style.color = '#ff5252';
+    statusEl.style.border = '1px solid rgba(255,23,68,0.3)';
+    statusEl.textContent = 'Error: ' + e.message;
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save All Sets';
+  }
 }

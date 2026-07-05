@@ -50,6 +50,7 @@
           <button id="startBtn" class="btn btn-success" disabled>Start Workout</button>
           <button id="endSetBtn" class="btn btn-warning" disabled>End Set</button>
           <button id="endSessionBtn" class="btn btn-danger" disabled>End Session</button>
+          <button id="logManualBtn" class="btn btn-secondary">✏️ Log Manual Entry</button>
         </div>
 
         <div class="stats-grid">
@@ -193,6 +194,73 @@
       </div>
     </div>
   </div>
+    <!-- Manual Entry Modal -->
+    <div id="manualEntryModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Log Manual Workout Entry</h2>
+          <button class="close-btn" id="closeManualBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px;">
+            Log sets without the webcam &mdash; no camera or pose data required.
+          </p>
+          <div class="form-group">
+            <label for="manualExerciseSelect">Exercise</label>
+            <select id="manualExerciseSelect" class="form-select">
+              <option value="" disabled selected>Loading exercises...</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group col-6">
+              <label for="manualSetsCount">Number of Sets</label>
+              <input type="number" id="manualSetsCount" min="1" max="20" value="3" class="form-input">
+            </div>
+            <div class="form-group col-6">
+              <label for="manualRepsCount" id="manualRepsLabel">Reps per Set</label>
+              <input type="number" id="manualRepsCount" min="0" value="10" class="form-input">
+            </div>
+          </div>
+          <p style="color: var(--text-muted); font-size: 0.8rem; margin: -8px 0 14px;">
+            One reps value applied equally to every set.
+          </p>
+          <div class="form-group">
+            <label for="manualWeightInput">Weight (kg) <span style="color:var(--text-muted);font-size:0.85em;">(optional)</span></label>
+            <div style="display: flex; gap: 8px;">
+              <input type="number" id="manualWeightInput" min="0" step="0.5" value="0" class="form-input" style="flex: 1;">
+              <select id="manualWeightMode" class="form-input" style="width: 120px;">
+                <option value="total">Total</option>
+                <option value="per_side">Per Side</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="manualDuration">Duration per Set (seconds) <span style="color:var(--text-muted);font-size:0.85em;">(optional &mdash; used for calorie calc)</span></label>
+            <input type="number" id="manualDuration" min="0" step="1" placeholder="e.g. 45" class="form-input">
+          </div>
+          <div class="form-group">
+            <div class="slider-header">
+              <label for="manualRpeInput">Rate of Perceived Exertion (RPE: 1&ndash;10)</label>
+              <span id="manualRpeValue">7</span>
+            </div>
+            <input type="range" id="manualRpeInput" min="1" max="10" value="7" class="form-slider">
+            <div class="slider-labels">
+              <span>Easy</span><span>Moderate</span><span>Max Effort</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="manualSessionNotes">Workout Notes <span style="color:var(--text-muted);font-size:0.85em;">(optional)</span></label>
+            <textarea id="manualSessionNotes" rows="2" placeholder="e.g. Felt strong today, slight knee discomfort" class="form-textarea"></textarea>
+          </div>
+          <div id="manualSaveStatus" style="display:none;padding:10px;border-radius:6px;font-size:0.9rem;font-weight:600;margin-top:8px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelManualBtn" class="btn btn-secondary">Cancel</button>
+          <button id="saveManualBtn" class="btn btn-success">Save All Sets</button>
+        </div>
+      </div>
+    </div>
+
 
   <script src="app-shared.js"></script>
   <script src="workout.js"></script>

@@ -9,7 +9,7 @@ class SetLogRequest(BaseModel):
     weight_kg: float = 0.0
     weight_mode: Optional[str] = "total"
     rpe: int = Field(..., ge=1, le=10)
-    avg_form_score: float
+    avg_form_score: Optional[float] = 0.0   # 0.0 for manual entries (no camera data)
     pain_flag: bool = False
     pain_location: Optional[str] = ""
     duration_seconds: float = 0.0
