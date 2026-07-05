@@ -43,3 +43,12 @@ class NutritionLogRequest(BaseModel):
     protein_g: float = Field(0.0, ge=0)
     carbs_g: float = Field(0.0, ge=0)
     fat_g: float = Field(0.0, ge=0)
+
+class UserRegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=4)
+    name: str = Field(..., min_length=1, max_length=100)
+
+class UserLoginRequest(BaseModel):
+    username: str
+    password: str

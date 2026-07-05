@@ -1,5 +1,15 @@
 // FitSense AI Frontend Logic
 
+// Global fetch interceptor to handle unauthenticated 401 status redirects
+const originalFetch = window.fetch;
+window.fetch = async function(...args) {
+  const response = await originalFetch(...args);
+  if (response.status === 401 && !window.location.pathname.includes('login.html') && !window.location.pathname.includes('register.html')) {
+    window.location.href = '/login.html';
+  }
+  return response;
+};
+
 let stream = null;
 let socket = null;
 let sendInterval = null;
@@ -158,11 +168,36 @@ const macroFatEl = document.getElementById('macroFat');
 // Initialization
 document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
-  await fetchProfile();
-  await fetchExercises();
-  await fetchRecentSessions();
-  await refreshDashboard();
+  await checkAuthAndInitialize();
 });
+
+async function checkAuthAndInitialize() {
+  try {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) {
+      window.location.href = '/login.html';
+      return;
+    }
+    const user = await res.json();
+    document.getElementById('username').textContent = user.name;
+    document.getElementById('avatarBadge').textContent = user.name ? user.name[0].toUpperCase() : 'U';
+    
+    // Show admin view button if admin
+    const adminHeaderBtn = document.getElementById('adminHeaderBtn');
+    if (adminHeaderBtn && user.is_admin) {
+      adminHeaderBtn.style.display = 'inline-flex';
+    }
+    
+    // Initialize dashboard data
+    await fetchProfile();
+    await fetchExercises();
+    await fetchRecentSessions();
+    await refreshDashboard();
+  } catch (error) {
+    console.error('Initialization error:', error);
+    window.location.href = '/login.html';
+  }
+}
 
 // Setup Events
 function setupEventListeners() {
@@ -170,6 +205,20 @@ function setupEventListeners() {
   endSetBtn.addEventListener('click', endSet);
   endSessionBtn.addEventListener('click', endSession);
   
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        const response = await fetch('/api/auth/logout', { method: 'POST' });
+        if (response.ok) {
+          window.location.href = '/login.html';
+        }
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    });
+  }
+
   // Pain checkbox visibility toggle
   painCheckbox.addEventListener('change', (e) => {
     painLocationGroup.style.display = e.target.checked ? 'flex' : 'none';

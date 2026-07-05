@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Up - FitSense AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #121212;
+      --panel-bg: rgba(30, 30, 30, 0.75);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #ffffff;
+      --text-muted: #aaaaaa;
+      --accent-color: #00e676; /* FitSense green */
+      --accent-hover: #00b359;
+      --error-color: #ff5252;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      background-image: radial-gradient(circle at 10% 20%, rgba(0, 230, 118, 0.08) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(68, 23, 255, 0.08) 0%, transparent 40%);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .register-container {
+      width: 100%;
+      max-width: 440px;
+      padding: 20px;
+    }
+
+    .logo-area {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .logo-accent {
+      font-weight: 800;
+      font-size: 2.2rem;
+      background: linear-gradient(135deg, #ffffff 30%, var(--accent-color) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -1px;
+    }
+
+    .logo-sub {
+      font-weight: 800;
+      font-size: 1.2rem;
+      color: var(--accent-color);
+      border: 1.5px solid var(--accent-color);
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    .card {
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 30px 25px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .card-header {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .card-header h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .card-header p {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-control {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--accent-color);
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 0 0 2px rgba(0, 230, 118, 0.15);
+    }
+
+    .btn {
+      width: 100%;
+      background: var(--accent-color);
+      color: #0b0f19;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 10px;
+    }
+
+    .btn:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .error-banner {
+      background: rgba(255, 82, 82, 0.15);
+      border: 1px solid var(--error-color);
+      color: #ff8a80;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-bottom: 16px;
+      display: none;
+      text-align: center;
+    }
+
+    .card-footer {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .card-footer a {
+      color: var(--accent-color);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .card-footer a:hover {
+      text-decoration: underline;
+      color: var(--accent-hover);
+    }
+  </style>
+</head>
+<body>
+  <div class="register-container">
+    <div class="logo-area">
+      <span class="logo-accent">FitSense</span><span class="logo-sub">AI</span>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">
+        <h2>Create Account</h2>
+        <p>Register to start custom workout logging</p>
+      </div>
+
+      <div class="error-banner" id="errorBanner">Username already exists.</div>
+
+      <form id="registerForm">
+        <div class="form-group">
+          <label class="form-label" for="name">Full Name</label>
+          <input class="form-control" type="text" id="name" placeholder="Enter your full name" required minlength="1" maxlength="100">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="username">Username</label>
+          <input class="form-control" type="text" id="username" placeholder="Choose a username (min 3 chars)" required minlength="3" maxlength="50" autocomplete="username">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input class="form-control" type="password" id="password" placeholder="Choose a password (min 4 chars)" required minlength="4" autocomplete="new-password">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="confirmPassword">Confirm Password</label>
+          <input class="form-control" type="password" id="confirmPassword" placeholder="Confirm your password" required minlength="4" autocomplete="new-password">
+        </div>
+
+        <button type="submit" class="btn">Sign Up</button>
+      </form>
+
+      <div class="card-footer">
+        Already have an account? <a href="/login.html">Sign In</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const registerForm = document.getElementById('registerForm');
+    const errorBanner = document.getElementById('errorBanner');
+
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBanner.style.display = 'none';
+
+      const name = document.getElementById('name').value;
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+
+      if (password !== confirmPassword) {
+        errorBanner.textContent = 'Passwords do not match.';
+        errorBanner.style.display = 'block';
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, name })
+        });
+
+        if (response.ok) {
+          // Registration automatically logs in, redirect to dashboard setup profile
+          window.location.href = '/';
+        } else {
+          const err = await response.json();
+          errorBanner.textContent = err.detail || 'Registration failed. Try a different username.';
+          errorBanner.style.display = 'block';
+        }
+      } catch (error) {
+        console.error('Registration error:', error);
+        errorBanner.textContent = 'Network error. Please try again.';
+        errorBanner.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,8 +1,23 @@
 import sqlite3
 import os
+import hashlib
+import secrets
 from datetime import datetime
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fitsense.db")
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(8)
+    hash_val = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
+    return f"{salt}${hash_val}"
+
+def verify_password(password: str, hashed: str) -> bool:
+    try:
+        salt, hash_val = hashed.split('$')
+        check_val = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
+        return secrets.compare_digest(hash_val, check_val)
+    except Exception:
+        return False
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -18,6 +33,9 @@ def init_db():
     CREATE TABLE IF NOT EXISTS users (
       user_id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
+      username TEXT UNIQUE,
+      password_hash TEXT,
+      is_admin INTEGER DEFAULT 0,
       age INTEGER,
       weight_kg REAL,
       height_cm REAL,
@@ -27,11 +45,26 @@ def init_db():
     );
     """)
     
-    # Run user column migration for sex if not present
+    # Run migrations for user table columns if not present (for existing databases)
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN sex TEXT DEFAULT 'unspecified';")
     except sqlite3.OperationalError:
         pass # Already migrated
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN username TEXT;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN password_hash TEXT;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;")
+    except sqlite3.OperationalError:
+        pass
         
     # 2. sessions
     cursor.execute("""
@@ -175,17 +208,94 @@ def init_db():
     # Check if we have at least one user, insert default Athlete if none
     cursor.execute("SELECT COUNT(*) as count FROM users")
     if cursor.fetchone()["count"] == 0:
+        hashed = hash_password("athlete")
         cursor.execute("""
-        INSERT INTO users (name, age, weight_kg, height_cm, fitness_goal, sex)
-        VALUES ('Athlete', 28, 75.0, 180.0, 'Strength and Form Improvement', 'unspecified')
-        """)
+        INSERT INTO users (name, username, password_hash, is_admin, age, weight_kg, height_cm, fitness_goal, sex)
+        VALUES ('Athlete', 'athlete', ?, 1, 28, 75.0, 180.0, 'Strength and Form Improvement', 'unspecified')
+        """, (hashed,))
+    else:
+        # Check if user_id=1 (Athlete) is missing username/password, and set defaults
+        cursor.execute("SELECT * FROM users WHERE user_id = 1")
+        row = cursor.fetchone()
+        if row and (not row["username"] or not row["password_hash"]):
+            hashed = hash_password("athlete")
+            cursor.execute("""
+                UPDATE users 
+                SET username = 'athlete', password_hash = ?, is_admin = 1
+                WHERE user_id = 1
+            """, (hashed,))
         
     conn.commit()
     conn.close()
 
+# User Management and Authentication
+
+def create_user(username, password, name, age=28, weight=75.0, height=180.0, sex='unspecified', fitness_goal='Strength and Form Improvement', is_admin=0):
+    conn = get_connection()
+    cursor = conn.cursor()
+    hashed = hash_password(password)
+    try:
+        cursor.execute("""
+            INSERT INTO users (username, password_hash, name, age, weight_kg, height_cm, sex, fitness_goal, is_admin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (username.lower().strip(), hashed, name, age, weight, height, sex, fitness_goal, is_admin))
+        user_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return user_id
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise ValueError("Username already exists")
+
+def authenticate_user(username, password):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username = ?", (username.lower().strip(),))
+    row = cursor.fetchone()
+    conn.close()
+    if row and verify_password(password, row["password_hash"]):
+        return dict(row)
+    return None
+
+def get_user_by_id(user_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_user_by_username(username):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username = ?", (username.lower().strip(),))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_admin_users_summary():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 
+            u.user_id,
+            u.username,
+            u.name,
+            u.is_admin,
+            COUNT(s.session_id) as total_sessions,
+            MAX(s.date) as last_active_date
+        FROM users u
+        LEFT JOIN sessions s ON u.user_id = s.user_id
+        GROUP BY u.user_id
+        ORDER BY u.user_id ASC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 # Profile settings CRUD
 
-def get_profile(user_id=1):
+def get_profile(user_id):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
@@ -216,7 +326,7 @@ def save_profile(user_id, name, age, weight, height, sex, fitness_goal):
 
 # Weight logs
 
-def get_weight_history(user_id=1, days=90):
+def get_weight_history(user_id, days=90):
     conn = get_connection()
     cursor = conn.cursor()
     if days == "all" or days is None:
@@ -316,7 +426,7 @@ def get_nutrition_data(user_id, date):
 
 # Workout sessions
 
-def get_recent_sessions(limit=10):
+def get_recent_sessions(user_id, limit=10):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -329,17 +439,18 @@ def get_recent_sessions(limit=10):
             s.total_calories_burned,
             (SELECT GROUP_CONCAT(exercise_name, ', ') FROM exercises WHERE session_id = s.session_id) as exercises_done
         FROM sessions s
+        WHERE s.user_id = ?
         ORDER BY s.session_id DESC
         LIMIT ?
-    """, (limit,))
+    """, (user_id, limit))
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
-def get_session_details(session_id):
+def get_session_details(session_id, user_id):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM sessions WHERE session_id = ?", (session_id,))
+    cursor.execute("SELECT * FROM sessions WHERE session_id = ? AND user_id = ?", (session_id, user_id))
     session = cursor.fetchone()
     if not session:
         conn.close()
@@ -358,7 +469,7 @@ def get_session_details(session_id):
     result["exercises"] = exercises
     return result
 
-def create_in_progress_session():
+def create_in_progress_session(user_id):
     conn = get_connection()
     cursor = conn.cursor()
     now_str = datetime.now().isoformat()
@@ -366,8 +477,8 @@ def create_in_progress_session():
     
     cursor.execute("""
         INSERT INTO sessions (user_id, date, start_time, end_time, total_duration_mins, total_sets, total_reps, avg_form_score, total_calories_burned, notes)
-        VALUES (1, ?, ?, NULL, 0.0, 0, 0, 0.0, 0.0, '')
-    """, (today_str, now_str))
+        VALUES (?, ?, ?, NULL, 0.0, 0, 0, 0.0, 0.0, '')
+    """, (user_id, today_str, now_str))
     session_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -451,8 +562,12 @@ def finalize_session(session_id, notes=""):
         with conn:
             cursor = conn.cursor()
             
-            # 1. Fetch user weight
-            cursor.execute("SELECT weight_kg FROM users WHERE user_id = 1")
+            # 1. Fetch user associated with this session to query weight
+            cursor.execute("SELECT user_id FROM sessions WHERE session_id = ?", (session_id,))
+            sess_row = cursor.fetchone()
+            user_id = sess_row["user_id"] if sess_row else 1
+            
+            cursor.execute("SELECT weight_kg FROM users WHERE user_id = ?", (user_id,))
             user_row = cursor.fetchone()
             weight = user_row["weight_kg"] if user_row else 75.0
             

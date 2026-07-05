@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - FitSense AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0f121d;
+      --panel-bg: rgba(22, 28, 45, 0.7);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #ffffff;
+      --text-muted: #9eafc2;
+      --accent-color: #00e676; /* FitSense green */
+      --accent-hover: #00b359;
+      --header-bg: rgba(15, 18, 29, 0.85);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      background-image: radial-gradient(circle at 10% 20%, rgba(0, 230, 118, 0.05) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(68, 23, 255, 0.05) 0%, transparent 40%);
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+
+    .app-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 30px;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+    }
+
+    .logo-accent {
+      font-weight: 800;
+      font-size: 1.8rem;
+      background: linear-gradient(135deg, #ffffff 30%, var(--accent-color) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -1px;
+    }
+
+    .logo-sub {
+      font-weight: 800;
+      font-size: 1rem;
+      color: var(--accent-color);
+      border: 1.5px solid var(--accent-color);
+      padding: 1px 5px;
+      border-radius: 4px;
+      margin-left: 4px;
+    }
+
+    .header-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-left: 15px;
+      border-left: 1.5px solid var(--border-color);
+      padding-left: 15px;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-accent {
+      background: var(--accent-color);
+      color: #0b0f19;
+      border: none;
+    }
+
+    .btn-accent:hover {
+      background: var(--accent-hover);
+    }
+
+    .panel {
+      background: var(--panel-bg);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.2);
+      margin-bottom: 25px;
+    }
+
+    .panel-header {
+      margin-bottom: 20px;
+    }
+
+    .panel-header h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+    }
+
+    .panel-header p {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      margin-top: 4px;
+    }
+
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    td {
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.92rem;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .badge-green {
+      background: rgba(0, 230, 118, 0.12);
+      color: var(--accent-color);
+      border: 1px solid rgba(0, 230, 118, 0.2);
+    }
+
+    .badge-gray {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .no-data {
+      padding: 40px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="logo-area">
+        <span class="logo-accent">FitSense</span><span class="logo-sub">AI</span>
+        <span class="header-title">Diagnostic Admin View</span>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <a href="/" class="btn">
+          <svg style="width: 16px; height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+          Home Dashboard
+        </a>
+        <button id="logoutBtn" class="btn">
+          <svg style="width: 16px; height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Log Out
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Registered Users</h2>
+          <p>Read-only summary of user registrations and workout logs activity</p>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Display Name</th>
+                <th>Role</th>
+                <th class="text-center">Total Sessions</th>
+                <th>Last Active Date</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <tr>
+                <td colspan="6" class="no-data">Loading users summary...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const usersTableBody = document.getElementById('usersTableBody');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    // Fetch users diagnostics on page load
+    async function loadDiagnostics() {
+      try {
+        const response = await fetch('/api/admin/users');
+        if (response.status === 401) {
+          window.location.href = '/login.html';
+          return;
+        } else if (response.status === 403) {
+          usersTableBody.innerHTML = `<tr><td colspan="6" class="no-data" style="color: #ff5252; font-weight: 500;">Access Denied: Admin role required.</td></tr>`;
+          return;
+        }
+
+        const data = await response.json();
+        if (data.length === 0) {
+          usersTableBody.innerHTML = '<tr><td colspan="6" class="no-data">No registered users found.</td></tr>';
+          return;
+        }
+
+        usersTableBody.innerHTML = '';
+        data.forEach(user => {
+          const tr = document.createElement('tr');
+          const lastActive = user.last_active_date ? user.last_active_date : '--';
+          const roleBadge = user.is_admin 
+            ? '<span class="badge badge-green">ADMIN</span>' 
+            : '<span class="badge badge-gray">USER</span>';
+
+          tr.innerHTML = `
+            <td>${user.user_id}</td>
+            <td><strong>${user.username}</strong></td>
+            <td>${user.name}</td>
+            <td>${roleBadge}</td>
+            <td class="text-center">${user.total_sessions}</td>
+            <td>${lastActive}</td>
+          `;
+          usersTableBody.appendChild(tr);
+        });
+      } catch (error) {
+        console.error('Error fetching admin summary:', error);
+        usersTableBody.innerHTML = '<tr><td colspan="6" class="no-data" style="color: #ff5252;">Failed to load user diagnostics.</td></tr>';
+      }
+    }
+
+    // Logout
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        const response = await fetch('/api/auth/logout', { method: 'POST' });
+        if (response.ok) {
+          window.location.href = '/login.html';
+        }
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    });
+
+    loadDiagnostics();
+  </script>
+</body>
+</html>

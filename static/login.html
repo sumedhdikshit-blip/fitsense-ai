@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - FitSense AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #121212;
+      --panel-bg: rgba(30, 30, 30, 0.75);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #ffffff;
+      --text-muted: #aaaaaa;
+      --accent-color: #00e676; /* FitSense green */
+      --accent-hover: #00b359;
+      --error-color: #ff5252;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      background-image: radial-gradient(circle at 10% 20%, rgba(0, 230, 118, 0.08) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(68, 23, 255, 0.08) 0%, transparent 40%);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 420px;
+      padding: 20px;
+    }
+
+    .logo-area {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .logo-accent {
+      font-weight: 800;
+      font-size: 2.2rem;
+      background: linear-gradient(135deg, #ffffff 30%, var(--accent-color) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -1px;
+    }
+
+    .logo-sub {
+      font-weight: 800;
+      font-size: 1.2rem;
+      color: var(--accent-color);
+      border: 1.5px solid var(--accent-color);
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    .card {
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 40px 30px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .card-header {
+      margin-bottom: 25px;
+      text-align: center;
+    }
+
+    .card-header h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .card-header p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-control {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--accent-color);
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 0 0 2px rgba(0, 230, 118, 0.15);
+    }
+
+    .btn {
+      width: 100%;
+      background: var(--accent-color);
+      color: #0b0f19;
+      border: none;
+      border-radius: 8px;
+      padding: 13px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 10px;
+    }
+
+    .btn:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .error-banner {
+      background: rgba(255, 82, 82, 0.15);
+      border: 1px solid var(--error-color);
+      color: #ff8a80;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+      display: none;
+      text-align: center;
+    }
+
+    .card-footer {
+      margin-top: 25px;
+      text-align: center;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .card-footer a {
+      color: var(--accent-color);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .card-footer a:hover {
+      text-decoration: underline;
+      color: var(--accent-hover);
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="logo-area">
+      <span class="logo-accent">FitSense</span><span class="logo-sub">AI</span>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">
+        <h2>Welcome Back</h2>
+        <p>Sign in to track your workout session</p>
+      </div>
+
+      <div class="error-banner" id="errorBanner">Invalid username or password.</div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label" for="username">Username</label>
+          <input class="form-control" type="text" id="username" placeholder="Enter your username" required autocomplete="username">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input class="form-control" type="password" id="password" placeholder="Enter your password" required autocomplete="current-password">
+        </div>
+
+        <button type="submit" class="btn">Sign In</button>
+      </form>
+
+      <div class="card-footer">
+        Don't have an account? <a href="/register.html">Sign Up</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const errorBanner = document.getElementById('errorBanner');
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBanner.style.display = 'none';
+
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Successful login, redirect to dashboard
+          window.location.href = '/';
+        } else {
+          const err = await response.json();
+          errorBanner.textContent = err.detail || 'Invalid username or password.';
+          errorBanner.style.display = 'block';
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        errorBanner.textContent = 'Network error. Please try again later.';
+        errorBanner.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

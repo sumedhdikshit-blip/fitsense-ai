@@ -58,7 +58,7 @@ def test_manual_set_entry_validation():
 def test_manual_set_db_storage():
     """Verify that manual set logs are stored in the database correctly without silent conversions."""
     init_db()
-    session_id = create_in_progress_session()
+    session_id = create_in_progress_session(1)
     exercise_id = get_or_create_exercise(session_id, "pushup", "Pushup")
 
     # 1. Log set 1: per_side weight mode, custom duration
@@ -231,10 +231,121 @@ def test_db_check_constraints():
         except sqlite3.IntegrityError:
             pass # Correctly failed
 
-        conn.close()
+        try:
+            conn.close()
+        except:
+            pass
     finally:
         # Restore DB_PATH and cleanup temp file
         from database import db
         db.DB_PATH = original_db_path
-        if os.path.exists(temp_db_path):
-            os.remove(temp_db_path)
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass
+
+def test_password_hashing_helpers():
+    """Verify that hash_password creates secure unique hashes and verify_password validates correctly."""
+    from database import db
+    pwd = "secret_password"
+    hashed1 = db.hash_password(pwd)
+    hashed2 = db.hash_password(pwd)
+    
+    # Hashes must use random salts, so they must be different
+    assert hashed1 != hashed2
+    
+    # Verification should succeed with correct password
+    assert db.verify_password(pwd, hashed1)
+    assert db.verify_password(pwd, hashed2)
+    
+    # Verification should fail with incorrect password
+    assert not db.verify_password("wrong_password", hashed1)
+
+def test_user_registration_and_authentication():
+    """Verify user registration, duplicate username rejection, and credential authentication."""
+    import tempfile
+    from database import db
+    
+    temp_db_fd, temp_db_path = tempfile.mkstemp()
+    os.close(temp_db_fd)
+    
+    try:
+        original_db_path = db.DB_PATH
+        db.DB_PATH = temp_db_path
+        db.init_db()
+        
+        # 1. Create a new user
+        uid1 = db.create_user("user_a", "pass_a", "User Alpha")
+        assert uid1 is not None
+        assert uid1 > 1 # athlete has user_id = 1
+        
+        # 2. Test duplicate username raises ValueError
+        try:
+            db.create_user("user_a", "pass_different", "User Duplicate")
+            assert False, "Expected ValueError for duplicate username"
+        except ValueError:
+            pass
+            
+        # 3. Authenticate with correct credentials
+        user = db.authenticate_user("user_a", "pass_a")
+        assert user is not None
+        assert user["user_id"] == uid1
+        assert user["name"] == "User Alpha"
+        assert user["username"] == "user_a"
+        
+        # 4. Authenticate with incorrect credentials
+        assert db.authenticate_user("user_a", "wrong_password") is None
+        assert db.authenticate_user("non_existent", "pass_a") is None
+        
+    finally:
+        db.DB_PATH = original_db_path
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass
+
+def test_multi_user_data_isolation():
+    """Verify that user sessions and logs are fully isolated and User A cannot query User B's sessions."""
+    import tempfile
+    from database import db
+    
+    temp_db_fd, temp_db_path = tempfile.mkstemp()
+    os.close(temp_db_fd)
+    
+    try:
+        original_db_path = db.DB_PATH
+        db.DB_PATH = temp_db_path
+        db.init_db()
+        
+        uid1 = db.create_user("user_1", "pass", "User One")
+        uid2 = db.create_user("user_2", "pass", "User Two")
+        
+        # Log session for user 1
+        sess1 = db.create_in_progress_session(uid1)
+        # Log session for user 2
+        sess2 = db.create_in_progress_session(uid2)
+        
+        # Verify get_recent_sessions splits them correctly
+        user1_sessions = db.get_recent_sessions(uid1)
+        user2_sessions = db.get_recent_sessions(uid2)
+        
+        assert len(user1_sessions) == 1
+        assert user1_sessions[0]["session_id"] == sess1
+        assert len(user2_sessions) == 1
+        assert user2_sessions[0]["session_id"] == sess2
+        
+        # Verify get_session_details prevents cross-user access
+        assert db.get_session_details(sess1, uid1) is not None
+        assert db.get_session_details(sess1, uid2) is None # Blocks access!
+        assert db.get_session_details(sess2, uid2) is not None
+        assert db.get_session_details(sess2, uid1) is None # Blocks access!
+        
+    finally:
+        db.DB_PATH = original_db_path
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass

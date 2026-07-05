@@ -4,9 +4,10 @@ import numpy as np
 import asyncio
 import uvicorn
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, Depends, status
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse
+from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime
 from typing import Optional
 
@@ -23,6 +24,16 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="FitSense AI Core Engine", lifespan=lifespan)
+app.add_middleware(SessionMiddleware, secret_key="fitsense_secret_session_key_123")
+
+def get_current_user_id(request: Request) -> int:
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+    return user_id
 
 
 def decode_base64_frame(base64_str: str) -> np.ndarray:
@@ -60,8 +71,8 @@ def calculate_bmr(weight: float, height: float, age: int, sex: str) -> float:
         female_bmr = 10.0 * weight + 6.25 * height - 5.0 * age - 161.0
         return (male_bmr + female_bmr) / 2.0
 
-def get_nutrition_breakdown_internal(date_str: str, profile: dict) -> dict:
-    nutrition = db.get_nutrition_data(user_id=1, date=date_str)
+def get_nutrition_breakdown_internal(user_id, date_str, profile):
+    nutrition = db.get_nutrition_data(user_id, date_str)
     if not nutrition:
         nutrition = {
             "calories_consumed": 0.0,
@@ -79,12 +90,12 @@ def get_nutrition_breakdown_internal(date_str: str, profile: dict) -> dict:
     cursor = conn.cursor()
     
     # Sum webcam sessions calories on this day
-    cursor.execute("SELECT SUM(total_calories_burned) as cal FROM sessions WHERE user_id = 1 AND date = ?", (date_str,))
+    cursor.execute("SELECT SUM(total_calories_burned) as cal FROM sessions WHERE user_id = ? AND date = ?", (user_id, date_str))
     webcam_row = cursor.fetchone()
     webcam_cals = webcam_row["cal"] if (webcam_row and webcam_row["cal"]) else 0.0
     
     # Sum cardio logs calories on this day
-    cursor.execute("SELECT SUM(calories_burned) as cal FROM cardio_logs WHERE user_id = 1 AND date = ?", (date_str,))
+    cursor.execute("SELECT SUM(calories_burned) as cal FROM cardio_logs WHERE user_id = ? AND date = ?", (user_id, date_str))
     cardio_row = cursor.fetchone()
     cardio_cals = cardio_row["cal"] if (cardio_row and cardio_row["cal"]) else 0.0
     
@@ -122,11 +133,63 @@ def get_exercises():
         for key, val in EXERCISE_LIBRARY.items()
     ]
 
+# ==================== AUTHENTICATION & ADMIN ENDPOINTS ====================
+
+@app.post("/api/auth/register")
+def register_user(data: models.UserRegisterRequest, request: Request):
+    try:
+        user_id = db.create_user(
+            username=data.username,
+            password=data.password,
+            name=data.name
+        )
+        request.session["user_id"] = user_id
+        return {"status": "success", "message": "User registered successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/auth/login")
+def login_user(data: models.UserLoginRequest, request: Request):
+    user = db.authenticate_user(data.username, data.password)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid username or password")
+    request.session["user_id"] = user["user_id"]
+    return {"status": "success", "message": "Logged in successfully", "is_admin": bool(user["is_admin"])}
+
+@app.post("/api/auth/logout")
+def logout_user(request: Request):
+    request.session.clear()
+    return {"status": "success", "message": "Logged out successfully"}
+
+@app.get("/api/auth/me")
+def get_me(user_id: int = Depends(get_current_user_id)):
+    user = db.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "user_id": user["user_id"],
+        "username": user["username"],
+        "name": user["name"],
+        "is_admin": bool(user["is_admin"])
+    }
+
+@app.get("/api/admin/users")
+def get_admin_users(user_id: int = Depends(get_current_user_id)):
+    user = db.get_user_by_id(user_id)
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Forbidden: Admin access required")
+    return db.get_admin_users_summary()
+
 @app.post("/set/log")
-def log_set(data: models.SetLogRequest):
+def log_set(data: models.SetLogRequest, user_id: int = Depends(get_current_user_id)):
     session_id = data.session_id
     if session_id is None:
-        session_id = db.create_in_progress_session()
+        session_id = db.create_in_progress_session(user_id)
+    else:
+        # Verify ownership of session
+        session_details = db.get_session_details(session_id, user_id)
+        if not session_details:
+            raise HTTPException(status_code=403, detail="Access denied to session.")
         
     if data.exercise_key not in EXERCISE_LIBRARY:
         raise HTTPException(status_code=400, detail=f"Invalid exercise: {data.exercise_key}")
@@ -149,36 +212,38 @@ def log_set(data: models.SetLogRequest):
     return {"status": "success", "message": "Set logged successfully", "session_id": session_id}
 
 @app.post("/session/end")
-def end_session(data: models.SessionEndRequest):
+def end_session(data: models.SessionEndRequest, user_id: int = Depends(get_current_user_id)):
+    session_details = db.get_session_details(data.session_id, user_id)
+    if not session_details:
+        raise HTTPException(status_code=403, detail="Access denied to session.")
+        
     summary = db.finalize_session(data.session_id, notes=data.notes)
     if summary is None:
         raise HTTPException(status_code=400, detail="Invalid session ID or session not found.")
     return summary
 
 @app.get("/sessions/recent")
-def get_recent_sessions():
-    return db.get_recent_sessions()
+def get_recent_sessions(user_id: int = Depends(get_current_user_id)):
+    return db.get_recent_sessions(user_id)
 
 @app.get("/sessions/{session_id}")
-def get_session(session_id: int):
-    details = db.get_session_details(session_id)
+def get_session(session_id: int, user_id: int = Depends(get_current_user_id)):
+    details = db.get_session_details(session_id, user_id)
     if not details:
         raise HTTPException(status_code=404, detail="Session not found.")
     return details
 
-# --- Part 2 Profile Endpoints ---
-
 @app.get("/profile")
-def get_profile():
-    profile = db.get_profile(user_id=1)
+def get_profile(user_id: int = Depends(get_current_user_id)):
+    profile = db.get_profile(user_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found.")
     return profile
 
 @app.post("/profile")
-def update_profile(data: models.ProfileRequest):
+def update_profile(data: models.ProfileRequest, user_id: int = Depends(get_current_user_id)):
     db.save_profile(
-        user_id=1,
+        user_id=user_id,
         name=data.name,
         age=data.age,
         weight=data.weight_kg,
@@ -191,21 +256,21 @@ def update_profile(data: models.ProfileRequest):
 # --- Part 2 Weight Endpoints ---
 
 @app.get("/weight/history")
-def get_weight_history(days: Optional[str] = "90"):
+def get_weight_history(days: Optional[str] = "90", user_id: int = Depends(get_current_user_id)):
     # If days is "all", it will pass days="all"
-    return db.get_weight_history(user_id=1, days=days)
+    return db.get_weight_history(user_id=user_id, days=days)
 
 @app.post("/weight/log")
-def log_weight_entry(data: models.WeightLogRequest):
-    db.log_weight(user_id=1, date=data.date, weight_kg=data.weight_kg)
+def log_weight_entry(data: models.WeightLogRequest, user_id: int = Depends(get_current_user_id)):
+    db.log_weight(user_id=user_id, date=data.date, weight_kg=data.weight_kg)
     return {"status": "success", "message": "Weight logged successfully"}
 
 # --- Part 2 Cardio Endpoints ---
 
 @app.post("/cardio/log")
-def log_cardio_entry(data: models.CardioLogRequest):
+def log_cardio_entry(data: models.CardioLogRequest, user_id: int = Depends(get_current_user_id)):
     db.log_cardio(
-        user_id=1,
+        user_id=user_id,
         date=data.date,
         activity_name=data.activity_name,
         duration_mins=data.duration_mins,
@@ -215,15 +280,15 @@ def log_cardio_entry(data: models.CardioLogRequest):
     return {"status": "success", "message": "Cardio log saved successfully"}
 
 @app.get("/cardio/{date}")
-def get_cardio_date(date: str):
-    return db.get_cardio_logs(user_id=1, date=date)
+def get_cardio_date(date: str, user_id: int = Depends(get_current_user_id)):
+    return db.get_cardio_logs(user_id=user_id, date=date)
 
 # --- Part 2 Nutrition Endpoints ---
 
 @app.post("/nutrition/log")
-def log_nutrition_entry(data: models.NutritionLogRequest):
+def log_nutrition_entry(data: models.NutritionLogRequest, user_id: int = Depends(get_current_user_id)):
     db.log_nutrition(
-        user_id=1,
+        user_id=user_id,
         date=data.date,
         calories_consumed=data.calories_consumed,
         protein=data.protein_g,
@@ -233,17 +298,17 @@ def log_nutrition_entry(data: models.NutritionLogRequest):
     return {"status": "success", "message": "Nutrition logs saved successfully"}
 
 @app.get("/nutrition/{date}")
-def get_nutrition_date(date: str):
-    profile = db.get_profile(user_id=1)
-    return get_nutrition_breakdown_internal(date, profile)
+def get_nutrition_date(date: str, user_id: int = Depends(get_current_user_id)):
+    profile = db.get_profile(user_id)
+    return get_nutrition_breakdown_internal(user_id, date, profile)
 
 # --- Part 2 Aggregation Dashboard ---
 
 @app.get("/dashboard/today")
-def get_dashboard_today():
+def get_dashboard_today(user_id: int = Depends(get_current_user_id)):
     today_str = datetime.now().strftime("%Y-%m-%d")
-    profile = db.get_profile(user_id=1)
-    nutrition = get_nutrition_breakdown_internal(today_str, profile)
+    profile = db.get_profile(user_id)
+    nutrition = get_nutrition_breakdown_internal(user_id, today_str, profile)
     
     conn = db.get_connection()
     cursor = conn.cursor()
@@ -255,8 +320,8 @@ def get_dashboard_today():
             AVG(avg_form_score) as avg_form_score,
             SUM(total_calories_burned) as total_calories_burned
         FROM sessions 
-        WHERE user_id = 1 AND date = ?
-    """, (today_str,))
+        WHERE user_id = ? AND date = ?
+    """, (user_id, today_str))
     sess_row = cursor.fetchone()
     
     today_sessions = {
@@ -267,7 +332,7 @@ def get_dashboard_today():
         "calories_burned": sess_row["total_calories_burned"] or 0.0
     }
     
-    cursor.execute("SELECT weight_kg FROM weight_history WHERE user_id = 1 AND date = ?", (today_str,))
+    cursor.execute("SELECT weight_kg FROM weight_history WHERE user_id = ? AND date = ?", (user_id, today_str))
     weight_row = cursor.fetchone()
     current_weight = weight_row["weight_kg"] if weight_row else (profile["weight_kg"] if profile else 75.0)
     
@@ -473,8 +538,25 @@ async def websocket_workout(websocket: WebSocket):
         except:
             pass
 
+@app.get("/")
+def read_index(request: Request):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login.html")
+    return FileResponse("static/index.html")
+
+@app.get("/admin")
+def read_admin(request: Request):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login.html")
+    user = db.get_user_by_id(user_id)
+    if not user or not user.get("is_admin"):
+        return HTMLResponse("<html><body><h1>Access Denied</h1><p>You must be an admin to view this page.</p></body></html>", status_code=403)
+    return FileResponse("static/admin.html")
+
 # Mount static folder last
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
