@@ -5,6 +5,7 @@ let socket = null;
 let sendInterval = null;
 let isSending = false;
 let reconnectTimer = null;
+let pingTimeout = null;
 
 // Workout session & state variables
 let currentExerciseKey = "";
@@ -896,6 +897,16 @@ async function startWorkout() {
   connectWebSocket();
 }
 
+function resetPingTimeout() {
+  if (pingTimeout) clearTimeout(pingTimeout);
+  pingTimeout = setTimeout(() => {
+    console.warn("WebSocket ping timeout - connection lost");
+    if (socket) {
+      socket.close();
+    }
+  }, 25000);
+}
+
 // Connect websocket
 function connectWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -909,10 +920,17 @@ function connectWebSocket() {
     streamStatusEl.classList.remove('tracking');
     isSending = true;
     startFrameLoop();
+    resetPingTimeout();
   };
   
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
+    
+    if (data.type === 'ping') {
+      socket.send(JSON.stringify({ type: 'pong' }));
+      resetPingTimeout();
+      return;
+    }
     
     // Draw frame
     if (data.frame) {
@@ -979,6 +997,10 @@ function connectWebSocket() {
   };
   
   socket.onclose = () => {
+    if (pingTimeout) {
+      clearTimeout(pingTimeout);
+      pingTimeout = null;
+    }
     streamStatusEl.classList.remove('connected', 'tracking');
     stopFrameLoop();
     

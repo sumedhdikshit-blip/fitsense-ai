@@ -1,6 +1,7 @@
 import base64
 import cv2
 import numpy as np
+import asyncio
 import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
@@ -288,10 +289,24 @@ async def websocket_workout(websocket: WebSocket):
     
     detector = PoseDetector()
     counter = None
+    ping_task = None
     
     try:
+        async def send_pings():
+            try:
+                while True:
+                    await asyncio.sleep(10)
+                    await websocket.send_json({"type": "ping"})
+            except Exception:
+                pass
+
+        ping_task = asyncio.create_task(send_pings())
+        
         while True:
             data = await websocket.receive_json()
+            if data.get("type") == "pong":
+                continue
+                
             frame_data = data.get("frame")
             exercise_key = data.get("exercise")
             
@@ -451,6 +466,8 @@ async def websocket_workout(websocket: WebSocket):
     except Exception as e:
         print(f"Exception in WebSocket handler: {e}")
     finally:
+        if ping_task:
+            ping_task.cancel()
         try:
             await websocket.close()
         except:
