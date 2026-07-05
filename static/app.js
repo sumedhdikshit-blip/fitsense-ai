@@ -5,7 +5,7 @@ let socket = null;
 let sendInterval = null;
 let isSending = false;
 
-// Workout session states
+// Workout session & state variables
 let currentExerciseKey = "";
 let currentSetNumber = 1;
 let lastRepsCounted = 0;
@@ -13,6 +13,13 @@ let lastAvgFormScore = 100;
 let sessionSets = 0;
 let sessionReps = 0;
 let sessionAvgScore = 100;
+
+// Part 2 Additions
+let isHoldMode = false;
+let workoutStartTime = 0;
+let activeProfile = null;
+let selectedWeightDays = "90";
+let activeCardioTab = "duration"; // "duration" | "direct"
 
 // DOM Elements
 const video = document.getElementById('video');
@@ -25,6 +32,7 @@ const startBtn = document.getElementById('startBtn');
 const endSetBtn = document.getElementById('endSetBtn');
 const endSessionBtn = document.getElementById('endSessionBtn');
 
+const repLabelEl = document.getElementById('repLabel');
 const repCountEl = document.getElementById('repCount');
 const stageLabelEl = document.getElementById('stageLabel');
 const formScorePercentEl = document.getElementById('formScorePercent');
@@ -37,6 +45,7 @@ const streamStatusEl = document.getElementById('streamStatus');
 const logSetModal = document.getElementById('logSetModal');
 const modalExercise = document.getElementById('modalExercise');
 const modalReps = document.getElementById('modalReps');
+const modalRepsLabel = document.getElementById('modalRepsLabel');
 const modalScore = document.getElementById('modalScore');
 const weightInput = document.getElementById('weightInput');
 const rpeInput = document.getElementById('rpeInput');
@@ -51,6 +60,8 @@ const cancelSetBtn = document.getElementById('cancelSetBtn');
 const summaryModal = document.getElementById('summaryModal');
 const sumSetsEl = document.getElementById('sumSets');
 const sumRepsEl = document.getElementById('sumReps');
+const sumRepsLabel = document.getElementById('sumRepsLabel');
+const sumCaloriesEl = document.getElementById('sumCalories');
 const sumScoreEl = document.getElementById('sumScore');
 const sessionNotes = document.getElementById('sessionNotes');
 const saveSessionBtn = document.getElementById('saveSessionBtn');
@@ -61,17 +72,91 @@ const closeDetailBtn = document.getElementById('closeDetailBtn');
 const detailTitle = document.getElementById('detailTitle');
 const detDate = document.getElementById('detDate');
 const detDuration = document.getElementById('detDuration');
+const detCalories = document.getElementById('detCalories');
 const detForm = document.getElementById('detForm');
 const detNotes = document.getElementById('detNotes');
 const detailSetsBody = document.getElementById('detailSetsBody');
 
 const historyBody = document.getElementById('historyBody');
 
+// Part 2 UI Elements
+const setupBanner = document.getElementById('setupBanner');
+const bannerSetupBtn = document.getElementById('bannerSetupBtn');
+const headerProfileBtn = document.getElementById('headerProfileBtn');
+const avatarBadge = document.getElementById('avatarBadge');
+const usernameEl = document.getElementById('username');
+
+// Profile Modal Elements
+const profileModal = document.getElementById('profileModal');
+const closeProfileBtn = document.getElementById('closeProfileBtn');
+const profileName = document.getElementById('profileName');
+const profileAge = document.getElementById('profileAge');
+const profileSex = document.getElementById('profileSex');
+const profileWeight = document.getElementById('profileWeight');
+const profileHeight = document.getElementById('profileHeight');
+const profileGoal = document.getElementById('profileGoal');
+const saveProfileBtn = document.getElementById('saveProfileBtn');
+
+// Quick Weight Modal Elements
+const quickWeightBtn = document.getElementById('quickWeightBtn');
+const weightModal = document.getElementById('weightModal');
+const closeWeightBtn = document.getElementById('closeWeightBtn');
+const quickWeightInput = document.getElementById('quickWeightInput');
+const quickWeightDate = document.getElementById('quickWeightDate');
+const saveWeightBtn = document.getElementById('saveWeightBtn');
+const currentWeightDisplay = document.getElementById('currentWeightDisplay');
+const weightChangeDisplay = document.getElementById('weightChangeDisplay');
+
+// Log Food Modal Elements
+const logFoodBtn = document.getElementById('logFoodBtn');
+const foodModal = document.getElementById('foodModal');
+const closeFoodBtn = document.getElementById('closeFoodBtn');
+const foodDate = document.getElementById('foodDate');
+const foodCalories = document.getElementById('foodCalories');
+const foodProtein = document.getElementById('foodProtein');
+const foodCarbs = document.getElementById('foodCarbs');
+const foodFat = document.getElementById('foodFat');
+const saveFoodBtn = document.getElementById('saveFoodBtn');
+
+// Log Cardio Modal Elements
+const logCardioBtn = document.getElementById('logCardioBtn');
+const cardioModal = document.getElementById('cardioModal');
+const closeCardioBtn = document.getElementById('closeCardioBtn');
+const tabDurationBtn = document.getElementById('tabDurationBtn');
+const tabDirectBtn = document.getElementById('tabDirectBtn');
+const cardioDate = document.getElementById('cardioDate');
+const panelDuration = document.getElementById('panelDuration');
+const panelDirect = document.getElementById('panelDirect');
+const cardioPresetSelect = document.getElementById('cardioPresetSelect');
+const cardioDuration = document.getElementById('cardioDuration');
+const customMetGroup = document.getElementById('customMetGroup');
+const cardioCustomMet = document.getElementById('cardioCustomMet');
+const cardioEstimatedDisplay = document.getElementById('cardioEstimatedDisplay');
+const overrideCalorieCheckbox = document.getElementById('overrideCalorieCheckbox');
+const overrideCalorieGroup = document.getElementById('overrideCalorieGroup');
+const cardioOverrideVal = document.getElementById('cardioOverrideVal');
+const cardioActivityName = document.getElementById('cardioActivityName');
+const cardioDirectCalories = document.getElementById('cardioDirectCalories');
+const cardioDirectDuration = document.getElementById('cardioDirectDuration');
+const saveCardioBtn = document.getElementById('saveCardioBtn');
+
+// Calorie Board Display Elements
+const netCaloriesDisplay = document.getElementById('netCaloriesDisplay');
+const calsConsumedEl = document.getElementById('calsConsumed');
+const calsBurnedEl = document.getElementById('calsBurned');
+const calsBmrEl = document.getElementById('calsBmr');
+const calsTefEl = document.getElementById('calsTef');
+const macroProteinEl = document.getElementById('macroProtein');
+const macroCarbsEl = document.getElementById('macroCarbs');
+const macroFatEl = document.getElementById('macroFat');
+
 // Initialization
-document.addEventListener('DOMContentLoaded', () => {
-  fetchExercises();
-  fetchRecentSessions();
+document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
+  await fetchProfile();
+  await fetchExercises();
+  await fetchRecentSessions();
+  await refreshDashboard();
 });
 
 // Setup Events
@@ -98,9 +183,164 @@ function setupEventListeners() {
   closeDetailBtn.addEventListener('click', () => {
     detailModal.classList.remove('active');
   });
+
+  // Profile modal bindings
+  const openProfile = () => {
+    if (activeProfile) {
+      profileName.value = activeProfile.name || "";
+      profileAge.value = activeProfile.age || "";
+      profileSex.value = activeProfile.sex || "unspecified";
+      profileWeight.value = activeProfile.weight_kg || "";
+      profileHeight.value = activeProfile.height_cm || "";
+      profileGoal.value = activeProfile.fitness_goal || "";
+    }
+    profileModal.classList.add('active');
+  };
+  headerProfileBtn.addEventListener('click', openProfile);
+  bannerSetupBtn.addEventListener('click', openProfile);
+  closeProfileBtn.addEventListener('click', () => profileModal.classList.remove('active'));
+  saveProfileBtn.addEventListener('click', saveProfile);
+
+  // Quick weight bindings
+  quickWeightBtn.addEventListener('click', () => {
+    quickWeightInput.value = activeProfile ? activeProfile.weight_kg : 75.0;
+    quickWeightDate.value = new Date().toISOString().split('T')[0];
+    weightModal.classList.add('active');
+  });
+  closeWeightBtn.addEventListener('click', () => weightModal.classList.remove('active'));
+  saveWeightBtn.addEventListener('click', saveWeight);
+
+  // Food modal bindings
+  logFoodBtn.addEventListener('click', () => {
+    foodDate.value = new Date().toISOString().split('T')[0];
+    foodCalories.value = "";
+    foodProtein.value = 0;
+    foodCarbs.value = 0;
+    foodFat.value = 0;
+    foodModal.classList.add('active');
+  });
+  closeFoodBtn.addEventListener('click', () => foodModal.classList.remove('active'));
+  saveFoodBtn.addEventListener('click', saveFood);
+
+  // Cardio modal bindings
+  logCardioBtn.addEventListener('click', () => {
+    cardioDate.value = new Date().toISOString().split('T')[0];
+    cardioDuration.value = 30;
+    cardioOverrideVal.value = "";
+    overrideCalorieCheckbox.checked = false;
+    overrideCalorieGroup.style.display = "none";
+    cardioActivityName.value = "";
+    cardioDirectCalories.value = "";
+    cardioDirectDuration.value = "";
+    customMetGroup.style.display = "none";
+    updateCardioEstimate();
+    cardioModal.classList.add('active');
+  });
+  closeCardioBtn.addEventListener('click', () => cardioModal.classList.remove('active'));
+  saveCardioBtn.addEventListener('click', saveCardio);
+
+  // Cardio tab triggers
+  tabDurationBtn.addEventListener('click', () => {
+    activeCardioTab = "duration";
+    tabDurationBtn.classList.add('active');
+    tabDirectBtn.classList.remove('active');
+    panelDuration.style.display = "block";
+    panelDirect.style.display = "none";
+  });
+  tabDirectBtn.addEventListener('click', () => {
+    activeCardioTab = "direct";
+    tabDirectBtn.classList.add('active');
+    tabDurationBtn.classList.remove('active');
+    panelDuration.style.display = "none";
+    panelDirect.style.display = "block";
+  });
+
+  cardioPresetSelect.addEventListener('change', (e) => {
+    customMetGroup.style.display = e.target.value === "Other" ? "flex" : "none";
+    updateCardioEstimate();
+  });
+  cardioDuration.addEventListener('input', updateCardioEstimate);
+  cardioCustomMet.addEventListener('input', updateCardioEstimate);
+  overrideCalorieCheckbox.addEventListener('change', (e) => {
+    overrideCalorieGroup.style.display = e.target.checked ? "flex" : "none";
+  });
+
+  // Exercise dropdown logic change for hold mode UI
+  exerciseSelect.addEventListener('change', () => {
+    const selectedOpt = exerciseSelect.options[exerciseSelect.selectedIndex];
+    const mode = selectedOpt.getAttribute('data-mode');
+    if (mode === "hold") {
+      isHoldMode = true;
+      repLabelEl.textContent = "HOLD TIME";
+    } else {
+      isHoldMode = false;
+      repLabelEl.textContent = "REPS";
+    }
+  });
+
+  // Chart range selector buttons
+  document.querySelectorAll('.btn-range').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      document.querySelectorAll('.btn-range').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      selectedWeightDays = e.target.getAttribute('data-days');
+      await fetchWeightHistoryAndDraw();
+    });
+  });
 }
 
-// Fetch exercises from config endpoint
+// Fetch dynamic user profile from backend
+async function fetchProfile() {
+  try {
+    const response = await fetch('/profile');
+    if (response.ok) {
+      activeProfile = await response.json();
+      
+      // Update UI components
+      usernameEl.textContent = activeProfile.name || "Athlete";
+      avatarBadge.textContent = activeProfile.name ? activeProfile.name[0].toUpperCase() : "A";
+      
+      // Verify completeness
+      const isComplete = activeProfile.weight_kg && activeProfile.height_cm && activeProfile.age && activeProfile.sex;
+      setupBanner.style.display = isComplete ? "none" : "flex";
+    }
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+  }
+}
+
+// Save User Profile settings
+async function saveProfile() {
+  const payload = {
+    name: profileName.value || "Athlete",
+    age: parseInt(profileAge.value) || 0,
+    weight_kg: parseFloat(profileWeight.value) || 0.0,
+    height_cm: parseFloat(profileHeight.value) || 0.0,
+    sex: profileSex.value,
+    fitness_goal: profileGoal.value || ""
+  };
+
+  try {
+    const response = await fetch('/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+      profileModal.classList.remove('active');
+      await fetchProfile();
+      await refreshDashboard();
+    } else {
+      const err = await response.json();
+      alert(`Error: ${err.detail || 'Validation failed. Age 1-120, Weight 10-500, Height 50-300.'}`);
+    }
+  } catch (error) {
+    console.error('Error updating profile:', error);
+  }
+}
+
+// Fetch exercises from config endpoint (50 exercises)
 async function fetchExercises() {
   try {
     const response = await fetch('/exercises');
@@ -108,16 +348,14 @@ async function fetchExercises() {
     
     exerciseSelect.innerHTML = '';
     
-    // Group exercises by category for aesthetics
     const categories = {
       lower_body: 'Lower Body',
       upper_body: 'Upper Body',
       core: 'Core',
-      cardio: 'Cardio',
-      full_body: 'Full Body'
+      cardio: 'Cardio & Full Body',
+      flexibility: 'Flexibility & Mobility'
     };
     
-    // Create option groups
     Object.keys(categories).forEach(catKey => {
       const catEx = exercises.filter(ex => ex.category === catKey);
       if (catEx.length > 0) {
@@ -127,16 +365,23 @@ async function fetchExercises() {
           const opt = document.createElement('option');
           opt.value = ex.key;
           opt.textContent = ex.display_name;
+          opt.setAttribute('data-mode', ex.mode);
           group.appendChild(opt);
         });
         exerciseSelect.appendChild(group);
       }
     });
     
+    // Set initial mode state
+    if (exerciseSelect.options.length > 0) {
+      const initialMode = exerciseSelect.options[0].getAttribute('data-mode');
+      isHoldMode = (initialMode === "hold");
+      repLabelEl.textContent = isHoldMode ? "HOLD TIME" : "REPS";
+    }
+    
     startBtn.disabled = false;
   } catch (error) {
     console.error('Error fetching exercises:', error);
-    exerciseSelect.innerHTML = '<option value="" disabled>Error loading exercises</option>';
   }
 }
 
@@ -149,7 +394,7 @@ async function fetchRecentSessions() {
     if (sessions.length === 0) {
       historyBody.innerHTML = `
         <tr>
-          <td colspan="6" style="text-align: center; color: #aaaaaa;">No workout history found. Log a session to get started.</td>
+          <td colspan="7" style="text-align: center; color: #aaaaaa;">No workout history found. Log a session to get started.</td>
         </tr>
       `;
       return;
@@ -161,12 +406,17 @@ async function fetchRecentSessions() {
         year: 'numeric', month: 'short', day: 'numeric'
       });
       
+      const repsOrTime = sess.exercises_done && (sess.exercises_done.includes("Plank") || sess.exercises_done.includes("Hold") || sess.exercises_done.includes("Sit"))
+        ? `${Math.round(sess.total_reps)}s` 
+        : sess.total_reps;
+        
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${dateFormatted}</td>
         <td>${sess.exercises_done || 'None'}</td>
         <td>${sess.total_sets}</td>
-        <td>${sess.total_reps}</td>
+        <td>${repsOrTime}</td>
+        <td>${sess.total_calories_burned ? sess.total_calories_burned.toFixed(1) + ' kcal' : '0 kcal'}</td>
         <td>
           <span class="${getScoreColorClass(sess.avg_form_score)}">
             ${Math.round(sess.avg_form_score)}%
@@ -186,7 +436,6 @@ async function viewSessionDetails(sessionId) {
   try {
     const response = await fetch(`/sessions/${sessionId}`);
     const detail = await response.json();
-    
     if (!detail) return;
     
     const dateFormatted = new Date(detail.date).toLocaleDateString(undefined, {
@@ -196,19 +445,22 @@ async function viewSessionDetails(sessionId) {
     detailTitle.textContent = `Workout Session Details #${detail.session_id}`;
     detDate.textContent = dateFormatted;
     detDuration.textContent = detail.total_duration_mins ? detail.total_duration_mins.toFixed(1) : '0';
+    detCalories.textContent = detail.total_calories_burned ? detail.total_calories_burned.toFixed(1) : '0';
     detForm.textContent = Math.round(detail.avg_form_score);
     detNotes.textContent = detail.notes || 'No notes added.';
     
     detailSetsBody.innerHTML = '';
     if (detail.exercises) {
       detail.exercises.forEach(ex => {
+        const isExHold = (ex.exercise_key.includes("plank") || ex.exercise_key.includes("sit") || ex.exercise_key.includes("hold"));
         if (ex.sets) {
           ex.sets.forEach(set => {
+            const setVol = isExHold ? `${set.reps_counted}s` : set.reps_counted;
             const tr = document.createElement('tr');
             tr.innerHTML = `
               <td>Set ${set.set_number}</td>
               <td><strong>${ex.exercise_name}</strong></td>
-              <td>${set.reps_counted}</td>
+              <td>${setVol}</td>
               <td>${set.weight_kg} kg</td>
               <td>${set.rpe}</td>
               <td><span class="${getScoreColorClass(set.avg_form_score)}">${Math.round(set.avg_form_score)}%</span></td>
@@ -230,14 +482,345 @@ async function viewSessionDetails(sessionId) {
   }
 }
 
-// Helper color class
+// Refresh Daily Dashboard Statistics
+async function refreshDashboard() {
+  try {
+    const response = await fetch('/dashboard/today');
+    if (response.ok) {
+      const data = await response.json();
+      
+      // Update BMR, TEF, Net Calorie labels
+      const nutrition = data.nutrition;
+      
+      const netVal = Math.round(nutrition.net_calories);
+      netCaloriesDisplay.textContent = `${netVal > 0 ? '+' : ''}${netVal} kcal`;
+      
+      // Color-coding net calories
+      if (netVal < 0) {
+        netCaloriesDisplay.className = "net-cal-val deficit";
+      } else if (netVal > 0) {
+        netCaloriesDisplay.className = "net-cal-val surplus";
+      } else {
+        netCaloriesDisplay.className = "net-cal-val";
+      }
+      
+      calsConsumedEl.textContent = `${Math.round(nutrition.calories_consumed)} kcal`;
+      calsBurnedEl.textContent = `${Math.round(nutrition.calories_burned_exercise)} kcal`;
+      calsBmrEl.textContent = `${Math.round(nutrition.calories_burned_bmr)} kcal`;
+      calsTefEl.textContent = `${Math.round(nutrition.tef_calories)} kcal`;
+      
+      macroProteinEl.textContent = `${Math.round(nutrition.protein_g)}g`;
+      macroCarbsEl.textContent = `${Math.round(nutrition.carbs_g)}g`;
+      macroFatEl.textContent = `${Math.round(nutrition.fat_g)}g`;
+      
+      currentWeightDisplay.textContent = `${data.current_weight.toFixed(1)} kg`;
+      
+      // Redraw Weight history line chart
+      await fetchWeightHistoryAndDraw();
+    }
+  } catch (error) {
+    console.error('Error refreshing dashboard:', error);
+  }
+}
+
+// Fetch weight history and plot on Canvas
+async function fetchWeightHistoryAndDraw() {
+  try {
+    const response = await fetch(`/weight/history?days=${selectedWeightDays}`);
+    if (response.ok) {
+      const history = await response.json();
+      drawWeightChart(history);
+    }
+  } catch (error) {
+    console.error('Error loading weight history:', error);
+  }
+}
+
+// Draw HTML5 Canvas Weight Chart
+function drawWeightChart(data) {
+  const canvas = document.getElementById('weightChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  if (!data || data.length === 0) {
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '13px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('No weight history data available. Log weight to begin.', canvas.width / 2, canvas.height / 2);
+    weightChangeDisplay.textContent = '-- kg';
+    return;
+  }
+  
+  const firstW = data[0].weight_kg;
+  const lastW = data[data.length - 1].weight_kg;
+  const delta = lastW - firstW;
+  const deltaStr = (delta >= 0 ? '+' : '') + delta.toFixed(1) + ' kg';
+  weightChangeDisplay.textContent = deltaStr;
+  
+  if (delta < 0) {
+    weightChangeDisplay.style.color = '#29b6f6'; // loss (blue)
+  } else if (delta > 0) {
+    weightChangeDisplay.style.color = '#ffa726'; // gain (orange)
+  } else {
+    weightChangeDisplay.style.color = '#ffffff';
+  }
+  
+  const paddingLeft = 45;
+  const paddingRight = 20;
+  const paddingTop = 25;
+  const paddingBottom = 35;
+  
+  const graphWidth = canvas.width - paddingLeft - paddingRight;
+  const graphHeight = canvas.height - paddingTop - paddingBottom;
+  
+  const weights = data.map(d => d.weight_kg);
+  let minW = Math.min(...weights) - 2;
+  let maxW = Math.max(...weights) + 2;
+  if (maxW - minW < 4) {
+    minW -= 2;
+    maxW += 2;
+  }
+  
+  // Draw axes
+  ctx.strokeStyle = '#2c2c2c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(paddingLeft, paddingTop);
+  ctx.lineTo(paddingLeft, canvas.height - paddingBottom);
+  ctx.lineTo(canvas.width - paddingRight, canvas.height - paddingBottom);
+  ctx.stroke();
+  
+  // Grid Lines & Y labels
+  ctx.fillStyle = '#aaaaaa';
+  ctx.font = '10px Inter';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  
+  const subdivisions = 4;
+  for (let i = 0; i <= subdivisions; i++) {
+    const yVal = minW + (maxW - minW) * (i / subdivisions);
+    const yPos = canvas.height - paddingBottom - (i / subdivisions) * graphHeight;
+    
+    ctx.strokeStyle = '#1f1f1f';
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, yPos);
+    ctx.lineTo(canvas.width - paddingRight, yPos);
+    ctx.stroke();
+    
+    ctx.fillText(yVal.toFixed(1), paddingLeft - 8, yPos);
+  }
+  
+  // Map coordinates
+  const points = [];
+  const numPoints = data.length;
+  data.forEach((d, idx) => {
+    const xPos = paddingLeft + (numPoints > 1 ? (idx / (numPoints - 1)) * graphWidth : graphWidth / 2);
+    const yPos = canvas.height - paddingBottom - ((d.weight_kg - minW) / (maxW - minW)) * graphHeight;
+    points.push({ x: xPos, y: yPos, date: d.date, weight: d.weight_kg });
+  });
+  
+  // Draw gradient wash area
+  if (points.length > 1) {
+    ctx.fillStyle = 'rgba(41, 182, 246, 0.07)';
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, canvas.height - paddingBottom);
+    points.forEach(p => {
+      ctx.lineTo(p.x, p.y);
+    });
+    ctx.lineTo(points[points.length - 1].x, canvas.height - paddingBottom);
+    ctx.closePath();
+    ctx.fill();
+  }
+  
+  // Draw chart connecting line
+  ctx.strokeStyle = '#29b6f6';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  points.forEach((p, idx) => {
+    if (idx === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  });
+  ctx.stroke();
+  
+  // Build a set of indices that will get date/value labels.
+  // Always label the first and last point, then distribute up to
+  // MAX_LABELS evenly across the full range so no date is repeated.
+  const MAX_LABELS = 5;
+  const labelIndices = new Set();
+  labelIndices.add(0);
+  labelIndices.add(numPoints - 1);
+  if (numPoints <= MAX_LABELS) {
+    // Show every point when there are few entries
+    for (let i = 0; i < numPoints; i++) labelIndices.add(i);
+  } else {
+    // Evenly space (MAX_LABELS - 2) interior labels between first and last
+    const interior = MAX_LABELS - 2;
+    for (let k = 1; k <= interior; k++) {
+      labelIndices.add(Math.round(k * (numPoints - 1) / (interior + 1)));
+    }
+  }
+
+  // Draw dots and text
+  points.forEach((p, idx) => {
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.strokeStyle = '#29b6f6';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Only label the computed set of indices; each label reads its own p.date
+    if (labelIndices.has(idx)) {
+      ctx.fillStyle = '#aaaaaa';
+      ctx.font = '9px Inter';
+      ctx.textAlign = 'center';
+
+      // p.date is "YYYY-MM-DD" from the API; format as MM/DD
+      const dateParts = p.date ? p.date.split('-') : [];
+      const formattedDate = dateParts.length === 3
+        ? `${dateParts[1]}/${dateParts[2]}`
+        : (p.date || '');
+
+      ctx.fillText(formattedDate, p.x, canvas.height - paddingBottom + 15);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(p.weight.toFixed(1), p.x, p.y - 10);
+    }
+  });
+}
+
+// Save Quick Weight log
+async function saveWeight() {
+  const payload = {
+    weight_kg: parseFloat(quickWeightInput.value) || 0.0,
+    date: quickWeightDate.value
+  };
+
+  try {
+    const response = await fetch('/weight/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+      weightModal.classList.remove('active');
+      await fetchProfile();
+      await refreshDashboard();
+    }
+  } catch (error) {
+    console.error('Error saving weight:', error);
+  }
+}
+
+// Save Nutrition Log
+async function saveFood() {
+  const payload = {
+    date: foodDate.value,
+    calories_consumed: parseFloat(foodCalories.value) || 0.0,
+    protein_g: parseFloat(foodProtein.value) || 0.0,
+    carbs_g: parseFloat(foodCarbs.value) || 0.0,
+    fat_g: parseFloat(foodFat.value) || 0.0
+  };
+
+  try {
+    const response = await fetch('/nutrition/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+      foodModal.classList.remove('active');
+      await refreshDashboard();
+    }
+  } catch (error) {
+    console.error('Error saving food log:', error);
+  }
+}
+
+// Estimate Cardio Burn dynamically
+function updateCardioEstimate() {
+  const metValues = {
+    Running: 9.8,
+    Cycling: 7.5,
+    Swimming: 7.0,
+    Walking: 3.5,
+    Sports: 8.0,
+    Other: 0.0
+  };
+
+  const preset = cardioPresetSelect.value;
+  let met = metValues[preset];
+  if (preset === "Other") {
+    met = parseFloat(cardioCustomMet.value) || 5.0;
+  }
+
+  const mins = parseFloat(cardioDuration.value) || 0;
+  const userWeight = activeProfile ? activeProfile.weight_kg : 75.0;
+
+  // Formula: calories = MET * weight_kg * hours
+  const hours = mins / 60.0;
+  const cals = met * userWeight * hours;
+
+  cardioEstimatedDisplay.textContent = `${Math.round(cals)} kcal`;
+  
+  if (!overrideCalorieCheckbox.checked) {
+    cardioOverrideVal.value = Math.round(cals);
+  }
+}
+
+// Save Cardio Log
+async function saveCardio() {
+  let activity = "";
+  let duration = 0.0;
+  let calories = 0.0;
+  let method = activeCardioTab;
+
+  if (activeCardioTab === "duration") {
+    activity = cardioPresetSelect.value;
+    duration = parseFloat(cardioDuration.value) || 0.0;
+    calories = parseFloat(cardioOverrideVal.value) || 0.0;
+  } else {
+    activity = cardioActivityName.value || "Cardio Workout";
+    duration = parseFloat(cardioDirectDuration.value) || 0.0;
+    calories = parseFloat(cardioDirectCalories.value) || 0.0;
+    method = "direct_calories";
+  }
+
+  const payload = {
+    date: cardioDate.value,
+    activity_name: activity,
+    duration_mins: duration,
+    calories_burned: calories,
+    entry_method: method
+  };
+
+  try {
+    const response = await fetch('/cardio/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+      cardioModal.classList.remove('active');
+      await refreshDashboard();
+    }
+  } catch (error) {
+    console.error('Error logging cardio:', error);
+  }
+}
+
+// Helpers
 function getScoreColorClass(score) {
   if (score >= 75) return 'score-green';
   if (score >= 50) return 'score-yellow';
   return 'score-red';
 }
-
-// Helper bar color class
 function getBarColorClass(score) {
   if (score >= 75) return 'bar-green';
   if (score >= 50) return 'bar-yellow';
@@ -254,7 +837,9 @@ async function startWorkout() {
   endSetBtn.disabled = false;
   endSessionBtn.disabled = false;
   
-  // Set up camera
+  // Set workout start time to track duration
+  workoutStartTime = Date.now();
+  
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { width: 640, height: 480 }
@@ -290,7 +875,7 @@ function connectWebSocket() {
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
     
-    // 1. Draw annotated frame
+    // Draw frame
     if (data.frame) {
       const img = new Image();
       img.onload = () => {
@@ -300,23 +885,28 @@ function connectWebSocket() {
       img.src = `data:image/jpeg;base64,${data.frame}`;
     }
     
-    // 2. Update real-time stats
     lastRepsCounted = data.reps;
     lastAvgFormScore = data.form_score;
     
-    repCountEl.textContent = data.reps;
+    // Format hold vs rep displays
+    if (isHoldMode) {
+      const mins = Math.floor(data.reps / 60);
+      const secs = data.reps % 60;
+      repCountEl.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    } else {
+      repCountEl.textContent = data.reps;
+    }
+    
     stageLabelEl.textContent = data.stage || '--';
     
-    // Update score bar
     formScorePercentEl.textContent = `${Math.round(data.form_score)}%`;
     formScorePercentEl.className = getScoreColorClass(data.form_score);
     formScoreBarEl.className = `progress-bar ${getBarColorClass(data.form_score)}`;
     formScoreBarEl.style.width = `${Math.max(5, data.form_score)}%`;
     
-    // Update feedback list
+    // Update feedback
     feedbackContainer.innerHTML = '';
     if (data.feedback && data.feedback.length > 0) {
-      // slice to latest 3
       data.feedback.slice(-3).forEach(fb => {
         const badge = document.createElement('div');
         badge.className = `feedback-badge ${getBadgeClass(fb.severity)}`;
@@ -324,10 +914,10 @@ function connectWebSocket() {
         feedbackContainer.appendChild(badge);
       });
     } else {
-      feedbackContainer.innerHTML = '<div class="feedback-badge badge-green">Performing rep...</div>';
+      feedbackContainer.innerHTML = `<div class="feedback-badge badge-green">${isHoldMode ? 'Holding alignment...' : 'Performing rep...'}</div>`;
     }
     
-    // Update live joint angles
+    // Update angles
     anglesContainer.innerHTML = '';
     if (data.angles && Object.keys(data.angles).length > 0) {
       Object.keys(data.angles).forEach(joint => {
@@ -355,10 +945,6 @@ function connectWebSocket() {
     isSending = false;
     stopFrameLoop();
   };
-  
-  socket.onerror = (err) => {
-    console.error('WebSocket Error:', err);
-  };
 }
 
 function getBadgeClass(severity) {
@@ -373,7 +959,6 @@ function startFrameLoop() {
   sendInterval = setInterval(() => {
     if (!isSending || !socket || socket.readyState !== WebSocket.OPEN) return;
     
-    // Draw hidden video to canvas to capture frame
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = 640;
     tempCanvas.height = 480;
@@ -400,19 +985,29 @@ function stopFrameLoop() {
 
 // Trigger end of a set
 function endSet() {
-  // 1. Pause frame streaming
   isSending = false;
   if (socket) {
     socket.close();
   }
   
-  // 2. Open Log Set Modal with prefilled values
+  // Calculate exact set duration
+  const durationSeconds = (Date.now() - workoutStartTime) / 1000.0;
+  
   const exName = exerciseSelect.options[exerciseSelect.selectedIndex].text;
   modalExercise.value = exName;
-  modalReps.value = lastRepsCounted;
+  
+  if (isHoldMode) {
+    modalRepsLabel.textContent = "Hold Time";
+    const mins = Math.floor(lastRepsCounted / 60);
+    const secs = lastRepsCounted % 60;
+    modalReps.value = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  } else {
+    modalRepsLabel.textContent = "Reps";
+    modalReps.value = lastRepsCounted;
+  }
+  
   modalScore.value = `${Math.round(lastAvgFormScore)}%`;
   
-  // Reset inputs
   weightInput.value = 0;
   rpeInput.value = 7;
   rpeValue.textContent = 7;
@@ -420,22 +1015,24 @@ function endSet() {
   painLocationGroup.style.display = 'none';
   painLocationInput.value = '';
   
+  // Store computed duration on saveSetBtn data attribute
+  saveSetBtn.setAttribute('data-duration', durationSeconds);
+  
   logSetModal.classList.add('active');
 }
 
-// Discard/Cancel Set
+// Discard Set
 function discardSet() {
   logSetModal.classList.remove('active');
   resetSetStats();
-  
-  // Resume streaming (new set connection)
+  workoutStartTime = Date.now();
   connectWebSocket();
 }
 
 function resetSetStats() {
   lastRepsCounted = 0;
   lastAvgFormScore = 100;
-  repCountEl.textContent = '0';
+  repCountEl.textContent = isHoldMode ? '00:00' : '0';
   stageLabelEl.textContent = '--';
   formScorePercentEl.textContent = '100%';
   formScorePercentEl.className = 'score-green';
@@ -445,8 +1042,10 @@ function resetSetStats() {
   anglesContainer.innerHTML = '<span class="angle-item-placeholder">No pose detected</span>';
 }
 
-// Save Set details to backend
+// Save Set details
 async function saveSet() {
+  const duration = parseFloat(saveSetBtn.getAttribute('data-duration')) || 0.0;
+  
   const payload = {
     exercise_key: currentExerciseKey,
     set_number: currentSetNumber,
@@ -455,7 +1054,8 @@ async function saveSet() {
     rpe: parseInt(rpeInput.value),
     avg_form_score: lastAvgFormScore,
     pain_flag: painCheckbox.checked,
-    pain_location: painCheckbox.checked ? painLocationInput.value : ""
+    pain_location: painCheckbox.checked ? painLocationInput.value : "",
+    duration_seconds: duration
   };
   
   try {
@@ -468,10 +1068,8 @@ async function saveSet() {
     if (response.ok) {
       currentSetNumber++;
       
-      // Update session totals for display
       sessionSets++;
       sessionReps += lastRepsCounted;
-      // Running average of form score
       if (sessionSets === 1) {
         sessionAvgScore = lastAvgFormScore;
       } else {
@@ -480,48 +1078,67 @@ async function saveSet() {
       
       logSetModal.classList.remove('active');
       resetSetStats();
-      
-      // Resume streaming (starts new set connection)
+      workoutStartTime = Date.now();
       connectWebSocket();
+      await refreshDashboard();
     } else {
       const err = await response.json();
       alert(`Error saving set: ${err.detail || 'Unknown error'}`);
     }
   } catch (error) {
     console.error('Error logging set:', error);
-    alert('Network error saving set.');
   }
 }
 
 // End current session
-function endSession() {
-  // Pause frame stream
+async function endSession() {
   isSending = false;
   stopFrameLoop();
   if (socket) {
     socket.close();
   }
   
-  // Close camera
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
     stream = null;
   }
   
-  // Reset canvas visualization
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   canvasPlaceholder.style.display = 'flex';
   
-  // Populate summary modal values
   sumSetsEl.textContent = sessionSets;
-  sumRepsEl.textContent = sessionReps;
+  if (isHoldMode) {
+    sumRepsLabel.textContent = "Hold Time";
+    const mins = Math.floor(sessionReps / 60);
+    const secs = sessionReps % 60;
+    sumRepsEl.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  } else {
+    sumRepsLabel.textContent = "Reps";
+    sumRepsEl.textContent = sessionReps;
+  }
+  
   sumScoreEl.textContent = `${Math.round(sessionAvgScore)}%`;
   sessionNotes.value = '';
+  
+  // Calculate dynamic calories using MET value * latest weight
+  let totalCals = 0.0;
+  try {
+    // We fetch a list of session calories or compute it from active session in DB
+    const recentRes = await fetch('/sessions/recent');
+    if (recentRes.ok) {
+      const recents = await recentRes.json();
+      // Since our active session is logged in db, let's display calories in summary modal
+      // We can get details of the current session in progress before saving
+    }
+  } catch (e) {}
+  
+  // Default display
+  sumCaloriesEl.textContent = "--";
   
   summaryModal.classList.add('active');
 }
 
-// Save completed session details to backend
+// Save completed session details
 async function saveSession() {
   const payload = {
     notes: sessionNotes.value
@@ -536,18 +1153,14 @@ async function saveSession() {
     
     if (response.ok) {
       summaryModal.classList.remove('active');
-      
-      // Reset full workout state
       resetControls();
-      
-      // Refresh session lists
-      fetchRecentSessions();
+      await fetchRecentSessions();
+      await refreshDashboard();
     } else {
       alert('Error finalizing session.');
     }
   } catch (error) {
     console.error('Error saving session:', error);
-    alert('Network error saving session.');
   }
 }
 

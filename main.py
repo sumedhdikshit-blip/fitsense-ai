@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from datetime import datetime
+from typing import Optional
 
 from config.exercise_library import EXERCISE_LIBRARY
 from database import db, models
@@ -15,7 +17,7 @@ from pose.counter import RepCounter
 # Lifespan manager for FastAPI
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize SQLite database and insert default user
+    # Initialize SQLite database
     db.init_db()
     yield
 
@@ -25,10 +27,6 @@ app = FastAPI(title="FitSense AI Core Engine", lifespan=lifespan)
 current_session_id = None
 
 def decode_base64_frame(base64_str: str) -> np.ndarray:
-    """
-    Decodes a base64 encoded string into an OpenCV BGR image.
-    Handles data URI prefixes if present.
-    """
     try:
         if "," in base64_str:
             base64_str = base64_str.split(",")[1]
@@ -41,9 +39,6 @@ def decode_base64_frame(base64_str: str) -> np.ndarray:
         return None
 
 def encode_frame_to_base64(frame: np.ndarray) -> str:
-    """
-    Encodes an OpenCV image to a base64 string.
-    """
     try:
         _, buffer = cv2.imencode('.jpg', frame)
         base64_str = base64.b64encode(buffer).decode('utf-8')
@@ -52,40 +47,94 @@ def encode_frame_to_base64(frame: np.ndarray) -> str:
         print(f"Error encoding frame: {e}")
         return ""
 
+def calculate_bmr(weight: float, height: float, age: int, sex: str) -> float:
+    """
+    Calculates Basal Metabolic Rate using Mifflin-St Jeor equation.
+    """
+    if sex == "male":
+        return 10.0 * weight + 6.25 * height - 5.0 * age + 5.0
+    elif sex == "female":
+        return 10.0 * weight + 6.25 * height - 5.0 * age - 161.0
+    else:
+        # Unspecified: Average of male and female BMR
+        male_bmr = 10.0 * weight + 6.25 * height - 5.0 * age + 5.0
+        female_bmr = 10.0 * weight + 6.25 * height - 5.0 * age - 161.0
+        return (male_bmr + female_bmr) / 2.0
+
+def get_nutrition_breakdown_internal(date_str: str, profile: dict) -> dict:
+    nutrition = db.get_nutrition_data(user_id=1, date=date_str)
+    if not nutrition:
+        nutrition = {
+            "calories_consumed": 0.0,
+            "protein_g": 0.0,
+            "carbs_g": 0.0,
+            "fat_g": 0.0
+        }
+        
+    if profile and profile.get("weight_kg") and profile.get("height_cm") and profile.get("age"):
+        bmr = calculate_bmr(profile["weight_kg"], profile["height_cm"], profile["age"], profile.get("sex", "unspecified"))
+    else:
+        bmr = 0.0
+        
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    # Sum webcam sessions calories on this day
+    cursor.execute("SELECT SUM(total_calories_burned) as cal FROM sessions WHERE user_id = 1 AND date = ?", (date_str,))
+    webcam_row = cursor.fetchone()
+    webcam_cals = webcam_row["cal"] if (webcam_row and webcam_row["cal"]) else 0.0
+    
+    # Sum cardio logs calories on this day
+    cursor.execute("SELECT SUM(calories_burned) as cal FROM cardio_logs WHERE user_id = 1 AND date = ?", (date_str,))
+    cardio_row = cursor.fetchone()
+    cardio_cals = cardio_row["cal"] if (cardio_row and cardio_row["cal"]) else 0.0
+    
+    conn.close()
+    
+    exercise_burn = webcam_cals + cardio_cals
+    consumed = nutrition.get("calories_consumed") or 0.0
+    tef = consumed * 0.10
+    
+    net = consumed - (exercise_burn + bmr + tef)
+    
+    return {
+        "date": date_str,
+        "calories_consumed": consumed,
+        "protein_g": nutrition.get("protein_g") or 0.0,
+        "carbs_g": nutrition.get("carbs_g") or 0.0,
+        "fat_g": nutrition.get("fat_g") or 0.0,
+        "calories_burned_exercise": exercise_burn,
+        "calories_burned_bmr": bmr,
+        "tef_calories": tef,
+        "net_calories": net
+    }
+
+# ==================== ENDPOINTS ====================
+
 @app.get("/exercises")
 def get_exercises():
-    """
-    Returns configured exercises from EXERCISE_LIBRARY dynamically.
-    Used by frontend to populate exercise options dropdown.
-    """
     return [
         {
             "key": key,
             "display_name": val["display_name"],
-            "category": val["category"]
+            "category": val["category"],
+            "mode": val.get("mode", "rep")
         }
         for key, val in EXERCISE_LIBRARY.items()
     ]
 
 @app.post("/set/log")
 def log_set(data: models.SetLogRequest):
-    """
-    Logs details of a completed workout set.
-    Creates an active session on the fly if none is in progress.
-    """
     global current_session_id
     if current_session_id is None:
         current_session_id = db.create_in_progress_session()
         
     if data.exercise_key not in EXERCISE_LIBRARY:
-        raise HTTPException(status_code=400, detail=f"Invalid exercise key: {data.exercise_key}")
+        raise HTTPException(status_code=400, detail=f"Invalid exercise: {data.exercise_key}")
         
     display_name = EXERCISE_LIBRARY[data.exercise_key]["display_name"]
-    
-    # Fetch or create the exercise entry associated with this session
     exercise_id = db.get_or_create_exercise(current_session_id, data.exercise_key, display_name)
     
-    # Save the set record to DB
     db.log_set_to_db(
         exercise_id=exercise_id,
         set_number=data.set_number,
@@ -94,40 +143,148 @@ def log_set(data: models.SetLogRequest):
         rpe=data.rpe,
         form_score=data.avg_form_score,
         pain_flag=data.pain_flag,
-        pain_location=data.pain_location
+        pain_location=data.pain_location,
+        duration_seconds=data.duration_seconds
     )
-    
     return {"status": "success", "message": "Set logged successfully"}
 
 @app.post("/session/end")
 def end_session(data: models.SessionEndRequest):
-    """
-    Finalizes the currently active workout session.
-    """
     global current_session_id
     if current_session_id is None:
-        raise HTTPException(status_code=400, detail="No active workout session to end.")
-        
+        raise HTTPException(status_code=400, detail="No active session in progress.")
+    
     summary = db.finalize_session(current_session_id, notes=data.notes)
     current_session_id = None
     return summary
 
 @app.get("/sessions/recent")
 def get_recent_sessions():
-    """
-    Returns details of the last 10 workout sessions.
-    """
     return db.get_recent_sessions()
 
 @app.get("/sessions/{session_id}")
 def get_session(session_id: int):
-    """
-    Returns full metadata and logged sets for a specific session ID.
-    """
     details = db.get_session_details(session_id)
     if not details:
         raise HTTPException(status_code=404, detail="Session not found.")
     return details
+
+# --- Part 2 Profile Endpoints ---
+
+@app.get("/profile")
+def get_profile():
+    profile = db.get_profile(user_id=1)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found.")
+    return profile
+
+@app.post("/profile")
+def update_profile(data: models.ProfileRequest):
+    db.save_profile(
+        user_id=1,
+        name=data.name,
+        age=data.age,
+        weight=data.weight_kg,
+        height=data.height_cm,
+        sex=data.sex,
+        fitness_goal=data.fitness_goal
+    )
+    return {"status": "success", "message": "Profile updated successfully"}
+
+# --- Part 2 Weight Endpoints ---
+
+@app.get("/weight/history")
+def get_weight_history(days: Optional[str] = "90"):
+    # If days is "all", it will pass days="all"
+    return db.get_weight_history(user_id=1, days=days)
+
+@app.post("/weight/log")
+def log_weight_entry(data: models.WeightLogRequest):
+    db.log_weight(user_id=1, date=data.date, weight_kg=data.weight_kg)
+    return {"status": "success", "message": "Weight logged successfully"}
+
+# --- Part 2 Cardio Endpoints ---
+
+@app.post("/cardio/log")
+def log_cardio_entry(data: models.CardioLogRequest):
+    db.log_cardio(
+        user_id=1,
+        date=data.date,
+        activity_name=data.activity_name,
+        duration_mins=data.duration_mins,
+        calories_burned=data.calories_burned,
+        entry_method=data.entry_method
+    )
+    return {"status": "success", "message": "Cardio log saved successfully"}
+
+@app.get("/cardio/{date}")
+def get_cardio_date(date: str):
+    return db.get_cardio_logs(user_id=1, date=date)
+
+# --- Part 2 Nutrition Endpoints ---
+
+@app.post("/nutrition/log")
+def log_nutrition_entry(data: models.NutritionLogRequest):
+    db.log_nutrition(
+        user_id=1,
+        date=data.date,
+        calories_consumed=data.calories_consumed,
+        protein=data.protein_g,
+        carbs=data.carbs_g,
+        fat=data.fat_g
+    )
+    return {"status": "success", "message": "Nutrition logs saved successfully"}
+
+@app.get("/nutrition/{date}")
+def get_nutrition_date(date: str):
+    profile = db.get_profile(user_id=1)
+    return get_nutrition_breakdown_internal(date, profile)
+
+# --- Part 2 Aggregation Dashboard ---
+
+@app.get("/dashboard/today")
+def get_dashboard_today():
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    profile = db.get_profile(user_id=1)
+    nutrition = get_nutrition_breakdown_internal(today_str, profile)
+    
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 
+            COUNT(session_id) as session_count,
+            SUM(total_sets) as total_sets,
+            SUM(total_reps) as total_reps,
+            AVG(avg_form_score) as avg_form_score,
+            SUM(total_calories_burned) as total_calories_burned
+        FROM sessions 
+        WHERE user_id = 1 AND date = ?
+    """, (today_str,))
+    sess_row = cursor.fetchone()
+    
+    today_sessions = {
+        "session_count": sess_row["session_count"] or 0,
+        "total_sets": sess_row["total_sets"] or 0,
+        "total_reps": sess_row["total_reps"] or 0,
+        "avg_form_score": sess_row["avg_form_score"] or 100.0,
+        "calories_burned": sess_row["total_calories_burned"] or 0.0
+    }
+    
+    cursor.execute("SELECT weight_kg FROM weight_history WHERE user_id = 1 AND date = ?", (today_str,))
+    weight_row = cursor.fetchone()
+    current_weight = weight_row["weight_kg"] if weight_row else (profile["weight_kg"] if profile else 75.0)
+    
+    conn.close()
+    
+    return {
+        "date": today_str,
+        "profile": profile,
+        "nutrition": nutrition,
+        "sessions": today_sessions,
+        "current_weight": current_weight
+    }
+
+# ==================== WEBSOCKET ====================
 
 @app.websocket("/ws/workout")
 async def websocket_workout(websocket: WebSocket):
@@ -138,7 +295,6 @@ async def websocket_workout(websocket: WebSocket):
     
     try:
         while True:
-            # Receive package
             data = await websocket.receive_json()
             frame_data = data.get("frame")
             exercise_key = data.get("exercise")
@@ -152,7 +308,7 @@ async def websocket_workout(websocket: WebSocket):
                 
             height, width = frame.shape[:2]
             
-            # Lazily initialize/switch counter for selected exercise
+            # Lazily initialize counter when exercise changes
             if counter is None or counter.exercise_key != exercise_key:
                 ex_config = EXERCISE_LIBRARY.get(exercise_key)
                 if not ex_config:
@@ -175,10 +331,10 @@ async def websocket_workout(websocket: WebSocket):
                         pt_c = landmarks_dict[joints[2]]
                         current_angles[angle_name] = calculate_angle(pt_a, pt_b, pt_c)
                 
-                # 2. Update rep counting state machine
+                # 2. Update counter state machine
                 counter.update(current_angles, landmarks_dict)
                 
-                # 3. Draw pose skeleton
+                # 3. Draw skeleton
                 frame = detector.draw_skeleton(frame, results)
                 
                 # 4. Overlay angles at joint vertices
@@ -200,29 +356,35 @@ async def websocket_workout(websocket: WebSocket):
                                 cv2.LINE_AA
                             )
                             
-            # Draw HUD Overlays (even if no pose is detected to maintain UI structure)
-            # 1. Reps count (top-right)
-            cv2.putText(frame, "REPS", (width - 120, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (170, 170, 170), 1, cv2.LINE_AA)
-            cv2.putText(frame, str(counter.reps_counted), (width - 120, 85), cv2.FONT_HERSHEY_DUPLEX, 1.8, (0, 200, 83), 3, cv2.LINE_AA)
+            # Overlay HUD elements
+            # 1. Reps / Hold timer (top-right)
+            if counter.mode == "hold":
+                # Running timer display
+                min_sec = f"{counter.reps_counted // 60:02d}:{counter.reps_counted % 60:02d}"
+                cv2.putText(frame, "HOLD TIME", (width - 150, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (170, 170, 170), 1, cv2.LINE_AA)
+                cv2.putText(frame, min_sec, (width - 150, 85), cv2.FONT_HERSHEY_DUPLEX, 1.6, (0, 200, 83), 3, cv2.LINE_AA)
+            else:
+                cv2.putText(frame, "REPS", (width - 120, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (170, 170, 170), 1, cv2.LINE_AA)
+                cv2.putText(frame, str(counter.reps_counted), (width - 120, 85), cv2.FONT_HERSHEY_DUPLEX, 1.8, (0, 200, 83), 3, cv2.LINE_AA)
             
-            # 2. Stage indicator
+            # 2. Stage
             stage_str = (counter.stage or "--").upper()
             cv2.putText(frame, f"STAGE: {stage_str}", (width - 150, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
             
-            # 3. Feedback Badge stack (top-left)
+            # 3. Feedback Badges
             y_offset = 20
             for fb in counter.latest_feedback[:2]:
                 msg = fb["message"]
                 sev = fb["severity"]
                 
                 if sev == "RED":
-                    bg_color = (68, 23, 255) # BGR
+                    bg_color = (68, 23, 255)
                     text_color = (255, 255, 255)
                 elif sev == "YELLOW":
-                    bg_color = (0, 214, 255) # BGR
+                    bg_color = (0, 214, 255)
                     text_color = (0, 0, 0)
                 else:
-                    bg_color = (83, 200, 0) # BGR
+                    bg_color = (83, 200, 0)
                     text_color = (255, 255, 255)
                     
                 (text_w, text_h), _ = cv2.getTextSize(msg, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
@@ -231,7 +393,7 @@ async def websocket_workout(websocket: WebSocket):
                 cv2.putText(frame, msg, (23, y_offset + 17), cv2.FONT_HERSHEY_SIMPLEX, 0.4, text_color, 1, cv2.LINE_AA)
                 y_offset += 32
                 
-            # 4. Form Score Bar (bottom)
+            # 4. Form Score Bar
             bar_x1, bar_y1 = 40, height - 30
             bar_x2, bar_y2 = width - 40, height - 20
             cv2.rectangle(frame, (bar_x1, bar_y1), (bar_x2, bar_y2), (40, 40, 40), -1)
@@ -255,10 +417,8 @@ async def websocket_workout(websocket: WebSocket):
                 cv2.LINE_AA
             )
             
-            # Encode frame back to Base64
             out_base64 = encode_frame_to_base64(frame)
             
-            # Send payload back to frontend
             response = {
                 "frame": out_base64,
                 "reps": counter.reps_counted,
@@ -279,8 +439,7 @@ async def websocket_workout(websocket: WebSocket):
         except:
             pass
 
-# Serve static files at root
-# Place this last so API routes are matched first
+# Mount static folder last
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 if __name__ == "__main__":

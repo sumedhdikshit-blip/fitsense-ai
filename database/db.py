@@ -22,10 +22,17 @@ def init_db():
       weight_kg REAL,
       height_cm REAL,
       fitness_goal TEXT,
+      sex TEXT DEFAULT 'unspecified',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
     
+    # Run user column migration for sex if not present
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN sex TEXT DEFAULT 'unspecified';")
+    except sqlite3.OperationalError:
+        pass # Already migrated
+        
     # 2. sessions
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS sessions (
@@ -38,7 +45,7 @@ def init_db():
       total_sets INTEGER DEFAULT 0,
       total_reps INTEGER DEFAULT 0,
       avg_form_score REAL,
-      total_calories_burned REAL,
+      total_calories_burned REAL DEFAULT 0.0,
       notes TEXT,
       FOREIGN KEY (user_id) REFERENCES users(user_id)
     );
@@ -54,7 +61,7 @@ def init_db():
       total_sets INTEGER DEFAULT 0,
       total_reps INTEGER DEFAULT 0,
       avg_form_score REAL,
-      calories_burned REAL,
+      calories_burned REAL DEFAULT 0.0,
       FOREIGN KEY (session_id) REFERENCES sessions(session_id)
     );
     """)
@@ -71,11 +78,17 @@ def init_db():
       avg_form_score REAL,
       pain_flag BOOLEAN DEFAULT 0,
       pain_location TEXT,
+      duration_seconds REAL DEFAULT 0.0,
       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (exercise_id) REFERENCES exercises(exercise_id)
     );
     """)
     
+    try:
+        cursor.execute("ALTER TABLE sets ADD COLUMN duration_seconds REAL DEFAULT 0.0;")
+    except sqlite3.OperationalError:
+        pass # Already migrated
+
     # 5. recovery_logs
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS recovery_logs (
@@ -113,13 +126,41 @@ def init_db():
       entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER DEFAULT 1,
       date TEXT NOT NULL,
-      calories_consumed REAL,
-      calories_burned_exercise REAL,
-      calories_burned_bmr REAL,
-      net_calories REAL,
-      protein_g REAL,
-      carbs_g REAL,
-      fat_g REAL,
+      calories_consumed REAL DEFAULT 0.0,
+      calories_burned_exercise REAL DEFAULT 0.0,
+      calories_burned_bmr REAL DEFAULT 0.0,
+      net_calories REAL DEFAULT 0.0,
+      protein_g REAL DEFAULT 0.0,
+      carbs_g REAL DEFAULT 0.0,
+      fat_g REAL DEFAULT 0.0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(user_id)
+    );
+    """)
+    
+    # 8. weight_history
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS weight_history (
+      entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
+      date TEXT NOT NULL,
+      weight_kg REAL NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(user_id),
+      UNIQUE(user_id, date) ON CONFLICT REPLACE
+    );
+    """)
+
+    # 9. cardio_logs
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS cardio_logs (
+      log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
+      date TEXT NOT NULL,
+      activity_name TEXT NOT NULL,
+      duration_mins REAL,
+      calories_burned REAL NOT NULL,
+      entry_method TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(user_id)
     );
@@ -129,19 +170,149 @@ def init_db():
     cursor.execute("SELECT COUNT(*) as count FROM users")
     if cursor.fetchone()["count"] == 0:
         cursor.execute("""
-        INSERT INTO users (name, age, weight_kg, height_cm, fitness_goal)
-        VALUES ('Athlete', 28, 75.0, 180.0, 'Strength and Form Improvement')
+        INSERT INTO users (name, age, weight_kg, height_cm, fitness_goal, sex)
+        VALUES ('Athlete', 28, 75.0, 180.0, 'Strength and Form Improvement', 'unspecified')
         """)
         
     conn.commit()
     conn.close()
 
-# Helper methods for API operations
+# Profile settings CRUD
+
+def get_profile(user_id=1):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def save_profile(user_id, name, age, weight, height, sex, fitness_goal):
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        UPDATE users 
+        SET name = ?, age = ?, weight_kg = ?, height_cm = ?, sex = ?, fitness_goal = ?
+        WHERE user_id = ?
+    """, (name, age, weight, height, sex, fitness_goal, user_id))
+    
+    # Log to weight history automatically
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    cursor.execute("""
+        INSERT INTO weight_history (user_id, date, weight_kg)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id, date) DO UPDATE SET weight_kg = excluded.weight_kg
+    """, (user_id, today_str, weight))
+    
+    conn.commit()
+    conn.close()
+
+# Weight logs
+
+def get_weight_history(user_id=1, days=90):
+    conn = get_connection()
+    cursor = conn.cursor()
+    if days == "all" or days is None:
+        cursor.execute("""
+            SELECT date, weight_kg FROM weight_history 
+            WHERE user_id = ? 
+            ORDER BY date ASC
+        """, (user_id,))
+    else:
+        # Fetch entries within N days
+        cursor.execute("""
+            SELECT date, weight_kg FROM weight_history 
+            WHERE user_id = ? AND date >= date('now', '-' || ? || ' days')
+            ORDER BY date ASC
+        """, (user_id, int(days)))
+        
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def log_weight(user_id, date, weight_kg):
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Upsert weight history
+    cursor.execute("""
+        INSERT INTO weight_history (user_id, date, weight_kg)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id, date) DO UPDATE SET weight_kg = excluded.weight_kg
+    """, (user_id, date, weight_kg))
+    
+    # Update profile weight to match the latest logged weight
+    cursor.execute("SELECT date FROM weight_history WHERE user_id = ? ORDER BY date DESC LIMIT 1", (user_id,))
+    latest_date_row = cursor.fetchone()
+    if latest_date_row and latest_date_row["date"] == date:
+        cursor.execute("UPDATE users SET weight_kg = ? WHERE user_id = ?", (weight_kg, user_id))
+        
+    conn.commit()
+    conn.close()
+
+# Cardio logs
+
+def log_cardio(user_id, date, activity_name, duration_mins, calories_burned, entry_method):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO cardio_logs (user_id, date, activity_name, duration_mins, calories_burned, entry_method)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (user_id, date, activity_name, duration_mins, calories_burned, entry_method))
+    conn.commit()
+    conn.close()
+
+def get_cardio_logs(user_id, date):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM cardio_logs 
+        WHERE user_id = ? AND date = ?
+        ORDER BY log_id ASC
+    """, (user_id, date))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+# Nutrition logs
+
+def log_nutrition(user_id, date, calories_consumed, protein, carbs, fat):
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Check if entry exists for this user and date
+    cursor.execute("SELECT entry_id FROM daily_nutrition WHERE user_id = ? AND date = ?", (user_id, date))
+    row = cursor.fetchone()
+    
+    if row:
+        cursor.execute("""
+            UPDATE daily_nutrition
+            SET calories_consumed = ?, protein_g = ?, carbs_g = ?, fat_g = ?
+            WHERE entry_id = ?
+        """, (calories_consumed, protein, carbs, fat, row["entry_id"]))
+    else:
+        cursor.execute("""
+            INSERT INTO daily_nutrition (user_id, date, calories_consumed, protein_g, carbs_g, fat_g)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user_id, date, calories_consumed, protein, carbs, fat))
+        
+    conn.commit()
+    conn.close()
+
+def get_nutrition_data(user_id, date):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM daily_nutrition WHERE user_id = ? AND date = ?", (user_id, date))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+# Workout sessions
 
 def get_recent_sessions(limit=10):
     conn = get_connection()
     cursor = conn.cursor()
-    # Query summary of last 'limit' sessions
     cursor.execute("""
         SELECT 
             s.session_id, 
@@ -149,6 +320,7 @@ def get_recent_sessions(limit=10):
             s.total_sets, 
             s.total_reps, 
             s.avg_form_score,
+            s.total_calories_burned,
             (SELECT GROUP_CONCAT(exercise_name, ', ') FROM exercises WHERE session_id = s.session_id) as exercises_done
         FROM sessions s
         ORDER BY s.session_id DESC
@@ -161,18 +333,15 @@ def get_recent_sessions(limit=10):
 def get_session_details(session_id):
     conn = get_connection()
     cursor = conn.cursor()
-    # Get session metadata
     cursor.execute("SELECT * FROM sessions WHERE session_id = ?", (session_id,))
     session = cursor.fetchone()
     if not session:
         conn.close()
         return None
     
-    # Get exercises in session
     cursor.execute("SELECT * FROM exercises WHERE session_id = ?", (session_id,))
     exercises = [dict(e) for e in cursor.fetchall()]
     
-    # Get sets for each exercise
     for exercise in exercises:
         cursor.execute("SELECT * FROM sets WHERE exercise_id = ? ORDER BY set_number ASC", (exercise["exercise_id"],))
         exercise["sets"] = [dict(s) for s in cursor.fetchall()]
@@ -221,15 +390,14 @@ def get_or_create_exercise(session_id, exercise_key, display_name):
     conn.close()
     return exercise_id
 
-def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location):
+def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location, duration_seconds=0.0):
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Insert the set
     cursor.execute("""
-        INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, rpe, avg_form_score, pain_flag, pain_location)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location))
+        INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, rpe, avg_form_score, pain_flag, pain_location, duration_seconds)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location, duration_seconds))
     
     # Update exercise summary stats
     cursor.execute("SELECT reps_counted, avg_form_score FROM sets WHERE exercise_id = ?", (exercise_id,))
@@ -249,11 +417,9 @@ def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_f
     session_id = cursor.fetchone()["session_id"]
     
     # Update session summary stats
-    # get all exercises under this session
     cursor.execute("SELECT exercise_id FROM exercises WHERE session_id = ?", (session_id,))
     ex_ids = [e["exercise_id"] for e in cursor.fetchall()]
     
-    # get all sets for all these exercises
     all_session_sets = []
     for ex_id in ex_ids:
         cursor.execute("SELECT reps_counted, avg_form_score FROM sets WHERE exercise_id = ?", (ex_id,))
@@ -276,7 +442,38 @@ def finalize_session(session_id, notes=""):
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Get session details to find start_time
+    # 1. Fetch user weight
+    cursor.execute("SELECT weight_kg FROM users WHERE user_id = 1")
+    user_row = cursor.fetchone()
+    weight = user_row["weight_kg"] if user_row else 75.0
+    
+    # 2. Get all exercises for this session
+    cursor.execute("SELECT exercise_id, exercise_key FROM exercises WHERE session_id = ?", (session_id,))
+    exercises = cursor.fetchall()
+    
+    total_session_calories = 0.0
+    
+    for ex in exercises:
+        ex_id = ex["exercise_id"]
+        ex_key = ex["exercise_key"]
+        
+        # Get MET value
+        from config.exercise_library import EXERCISE_LIBRARY
+        met = EXERCISE_LIBRARY.get(ex_key, {}).get("met_value", 3.0)
+        
+        # Get total duration of all sets for this exercise
+        cursor.execute("SELECT SUM(duration_seconds) as total_dur FROM sets WHERE exercise_id = ?", (ex_id,))
+        dur_row = cursor.fetchone()
+        total_dur_seconds = dur_row["total_dur"] if (dur_row and dur_row["total_dur"]) else 0.0
+        
+        # Calculate calories for this exercise (MET * weight * hours)
+        ex_calories = met * weight * (total_dur_seconds / 3600.0)
+        total_session_calories += ex_calories
+        
+        # Update exercise calories
+        cursor.execute("UPDATE exercises SET calories_burned = ? WHERE exercise_id = ?", (ex_calories, ex_id))
+        
+    # 3. Finalize session with end_time, duration, and total_calories_burned
     cursor.execute("SELECT start_time FROM sessions WHERE session_id = ?", (session_id,))
     row = cursor.fetchone()
     if not row:
@@ -290,9 +487,9 @@ def finalize_session(session_id, notes=""):
     
     cursor.execute("""
         UPDATE sessions 
-        SET end_time = ?, total_duration_mins = ?, notes = ?
+        SET end_time = ?, total_duration_mins = ?, total_calories_burned = ?, notes = ?
         WHERE session_id = ?
-    """, (end_time.isoformat(), duration_mins, notes, session_id))
+    """, (end_time.isoformat(), duration_mins, total_session_calories, notes, session_id))
     
     conn.commit()
     
