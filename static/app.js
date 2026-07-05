@@ -14,6 +14,7 @@ let lastAvgFormScore = 100;
 let sessionSets = 0;
 let sessionReps = 0;
 let sessionAvgScore = 100;
+let currentSessionId = null;
 
 // Part 2 Additions
 let isHoldMode = false;
@@ -1111,6 +1112,7 @@ async function saveSet() {
   }
   
   const payload = {
+    session_id: currentSessionId,
     exercise_key: currentExerciseKey,
     set_number: currentSetNumber,
     reps_counted: repsCounted,
@@ -1131,6 +1133,10 @@ async function saveSet() {
     });
     
     if (response.ok) {
+      const resData = await response.json();
+      if (resData && resData.session_id) {
+        currentSessionId = resData.session_id;
+      }
       currentSetNumber++;
       
       sessionSets++;
@@ -1210,6 +1216,7 @@ async function endSession() {
 // Save completed session details
 async function saveSession() {
   const payload = {
+    session_id: currentSessionId,
     notes: sessionNotes.value
   };
   
@@ -1240,6 +1247,7 @@ function resetControls() {
   endSetBtn.disabled = true;
   endSessionBtn.disabled = true;
   
+  currentSessionId = null;
   currentSetNumber = 1;
   sessionSets = 0;
   sessionReps = 0;

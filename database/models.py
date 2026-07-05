@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 class SetLogRequest(BaseModel):
+    session_id: Optional[int] = None
     exercise_key: str
     set_number: int
     reps_counted: int
@@ -14,6 +15,7 @@ class SetLogRequest(BaseModel):
     duration_seconds: float = 0.0
 
 class SessionEndRequest(BaseModel):
+    session_id: int
     notes: Optional[str] = ""
 
 class ProfileRequest(BaseModel):

@@ -23,8 +23,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="FitSense AI Core Engine", lifespan=lifespan)
 
-# Global active session tracking (MVP-scoped)
-current_session_id = None
 
 def decode_base64_frame(base64_str: str) -> np.ndarray:
     try:
@@ -125,15 +123,15 @@ def get_exercises():
 
 @app.post("/set/log")
 def log_set(data: models.SetLogRequest):
-    global current_session_id
-    if current_session_id is None:
-        current_session_id = db.create_in_progress_session()
+    session_id = data.session_id
+    if session_id is None:
+        session_id = db.create_in_progress_session()
         
     if data.exercise_key not in EXERCISE_LIBRARY:
         raise HTTPException(status_code=400, detail=f"Invalid exercise: {data.exercise_key}")
         
     display_name = EXERCISE_LIBRARY[data.exercise_key]["display_name"]
-    exercise_id = db.get_or_create_exercise(current_session_id, data.exercise_key, display_name)
+    exercise_id = db.get_or_create_exercise(session_id, data.exercise_key, display_name)
     
     db.log_set_to_db(
         exercise_id=exercise_id,
@@ -147,16 +145,13 @@ def log_set(data: models.SetLogRequest):
         duration_seconds=data.duration_seconds,
         weight_mode=data.weight_mode
     )
-    return {"status": "success", "message": "Set logged successfully"}
+    return {"status": "success", "message": "Set logged successfully", "session_id": session_id}
 
 @app.post("/session/end")
 def end_session(data: models.SessionEndRequest):
-    global current_session_id
-    if current_session_id is None:
-        raise HTTPException(status_code=400, detail="No active session in progress.")
-    
-    summary = db.finalize_session(current_session_id, notes=data.notes)
-    current_session_id = None
+    summary = db.finalize_session(data.session_id, notes=data.notes)
+    if summary is None:
+        raise HTTPException(status_code=400, detail="Invalid session ID or session not found.")
     return summary
 
 @app.get("/sessions/recent")
