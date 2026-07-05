@@ -1,19 +1,22 @@
 import sys
 import os
 
-# Import the test module
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from tests import test_exercise_and_chart
+# Import the test modules directly by adding tests folder to sys.path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests"))
+import test_exercise_and_chart
+import test_features
 
 # Discover and run test functions
-tests = [name for name in dir(test_exercise_and_chart) if name.startswith("test_")]
+tests_1 = [(test_exercise_and_chart, name) for name in dir(test_exercise_and_chart) if name.startswith("test_")]
+tests_2 = [(test_features, name) for name in dir(test_features) if name.startswith("test_")]
+all_tests = sorted(tests_1 + tests_2, key=lambda x: x[1])
 
 passed = 0
 failed = 0
 
 print("=== Running Custom Test Suite ===")
-for test_name in sorted(tests):
-    test_func = getattr(test_exercise_and_chart, test_name)
+for test_mod, test_name in all_tests:
+    test_func = getattr(test_mod, test_name)
     try:
         test_func()
         print(f"[PASS] {test_name}")

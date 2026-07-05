@@ -72,14 +72,14 @@ def init_db():
       set_id INTEGER PRIMARY KEY AUTOINCREMENT,
       exercise_id INTEGER NOT NULL,
       set_number INTEGER NOT NULL,
-      reps_counted INTEGER DEFAULT 0,
-      weight_kg REAL DEFAULT 0,
+      reps_counted INTEGER DEFAULT 0 CHECK (reps_counted >= 0),
+      weight_kg REAL DEFAULT 0 CHECK (weight_kg >= 0),
       weight_mode TEXT DEFAULT 'total',
       rpe INTEGER,
       avg_form_score REAL,
       pain_flag BOOLEAN DEFAULT 0,
       pain_location TEXT,
-      duration_seconds REAL DEFAULT 0.0,
+      duration_seconds REAL DEFAULT 0.0 CHECK (duration_seconds >= 0),
       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (exercise_id) REFERENCES exercises(exercise_id)
     );
@@ -398,110 +398,110 @@ def get_or_create_exercise(session_id, exercise_key, display_name):
 
 def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location, duration_seconds=0.0, weight_mode='total'):
     conn = get_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, weight_mode, rpe, avg_form_score, pain_flag, pain_location, duration_seconds)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (exercise_id, set_number, reps, weight, weight_mode, rpe, form_score, pain_flag, pain_location, duration_seconds))
-    
-    # Update exercise summary stats
-    cursor.execute("SELECT reps_counted, avg_form_score FROM sets WHERE exercise_id = ?", (exercise_id,))
-    all_sets = cursor.fetchall()
-    total_reps = sum(s["reps_counted"] for s in all_sets)
-    total_sets = len(all_sets)
-    avg_score = sum(s["avg_form_score"] for s in all_sets) / total_sets if total_sets > 0 else 0.0
-    
-    cursor.execute("""
-        UPDATE exercises 
-        SET total_sets = ?, total_reps = ?, avg_form_score = ?
-        WHERE exercise_id = ?
-    """, (total_sets, total_reps, avg_score, exercise_id))
-    
-    # Get session_id from exercise
-    cursor.execute("SELECT session_id FROM exercises WHERE exercise_id = ?", (exercise_id,))
-    session_id = cursor.fetchone()["session_id"]
-    
-    # Update session summary stats
-    cursor.execute("SELECT exercise_id FROM exercises WHERE session_id = ?", (session_id,))
-    ex_ids = [e["exercise_id"] for e in cursor.fetchall()]
-    
-    all_session_sets = []
-    for ex_id in ex_ids:
-        cursor.execute("SELECT reps_counted, avg_form_score FROM sets WHERE exercise_id = ?", (ex_id,))
-        all_session_sets.extend(cursor.fetchall())
-        
-    sess_reps = sum(s["reps_counted"] for s in all_session_sets)
-    sess_sets = len(all_session_sets)
-    sess_avg_score = sum(s["avg_form_score"] for s in all_session_sets) / sess_sets if sess_sets > 0 else 0.0
-    
-    cursor.execute("""
-        UPDATE sessions 
-        SET total_sets = ?, total_reps = ?, avg_form_score = ?
-        WHERE session_id = ?
-    """, (sess_sets, sess_reps, sess_avg_score, session_id))
-    
-    conn.commit()
-    conn.close()
+    try:
+        with conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, weight_mode, rpe, avg_form_score, pain_flag, pain_location, duration_seconds)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (exercise_id, set_number, reps, weight, weight_mode, rpe, form_score, pain_flag, pain_location, duration_seconds))
+            
+            # Update exercise summary stats
+            cursor.execute("SELECT reps_counted, avg_form_score FROM sets WHERE exercise_id = ?", (exercise_id,))
+            all_sets = cursor.fetchall()
+            total_reps = sum(s["reps_counted"] for s in all_sets)
+            total_sets = len(all_sets)
+            avg_score = sum(s["avg_form_score"] for s in all_sets) / total_sets if total_sets > 0 else 0.0
+            
+            cursor.execute("""
+                UPDATE exercises 
+                SET total_sets = ?, total_reps = ?, avg_form_score = ?
+                WHERE exercise_id = ?
+            """, (total_sets, total_reps, avg_score, exercise_id))
+            
+            # Get session_id from exercise
+            cursor.execute("SELECT session_id FROM exercises WHERE exercise_id = ?", (exercise_id,))
+            session_id = cursor.fetchone()["session_id"]
+            
+            # Update session summary stats
+            cursor.execute("SELECT exercise_id FROM exercises WHERE session_id = ?", (session_id,))
+            ex_ids = [e["exercise_id"] for e in cursor.fetchall()]
+            
+            all_session_sets = []
+            for ex_id in ex_ids:
+                cursor.execute("SELECT reps_counted, avg_form_score FROM sets WHERE exercise_id = ?", (ex_id,))
+                all_session_sets.extend(cursor.fetchall())
+                
+            sess_reps = sum(s["reps_counted"] for s in all_session_sets)
+            sess_sets = len(all_session_sets)
+            sess_avg_score = sum(s["avg_form_score"] for s in all_session_sets) / sess_sets if sess_sets > 0 else 0.0
+            
+            cursor.execute("""
+                UPDATE sessions 
+                SET total_sets = ?, total_reps = ?, avg_form_score = ?
+                WHERE session_id = ?
+            """, (sess_sets, sess_reps, sess_avg_score, session_id))
+    finally:
+        conn.close()
 
 def finalize_session(session_id, notes=""):
     conn = get_connection()
-    cursor = conn.cursor()
-    
-    # 1. Fetch user weight
-    cursor.execute("SELECT weight_kg FROM users WHERE user_id = 1")
-    user_row = cursor.fetchone()
-    weight = user_row["weight_kg"] if user_row else 75.0
-    
-    # 2. Get all exercises for this session
-    cursor.execute("SELECT exercise_id, exercise_key FROM exercises WHERE session_id = ?", (session_id,))
-    exercises = cursor.fetchall()
-    
-    total_session_calories = 0.0
-    
-    for ex in exercises:
-        ex_id = ex["exercise_id"]
-        ex_key = ex["exercise_key"]
-        
-        # Get MET value
-        from config.exercise_library import EXERCISE_LIBRARY
-        met = EXERCISE_LIBRARY.get(ex_key, {}).get("met_value", 3.0)
-        
-        # Get total duration of all sets for this exercise
-        cursor.execute("SELECT SUM(duration_seconds) as total_dur FROM sets WHERE exercise_id = ?", (ex_id,))
-        dur_row = cursor.fetchone()
-        total_dur_seconds = dur_row["total_dur"] if (dur_row and dur_row["total_dur"]) else 0.0
-        
-        # Calculate calories for this exercise (MET * weight * hours)
-        ex_calories = met * weight * (total_dur_seconds / 3600.0)
-        total_session_calories += ex_calories
-        
-        # Update exercise calories
-        cursor.execute("UPDATE exercises SET calories_burned = ? WHERE exercise_id = ?", (ex_calories, ex_id))
-        
-    # 3. Finalize session with end_time, duration, and total_calories_burned
-    cursor.execute("SELECT start_time FROM sessions WHERE session_id = ?", (session_id,))
-    row = cursor.fetchone()
-    if not row:
+    try:
+        with conn:
+            cursor = conn.cursor()
+            
+            # 1. Fetch user weight
+            cursor.execute("SELECT weight_kg FROM users WHERE user_id = 1")
+            user_row = cursor.fetchone()
+            weight = user_row["weight_kg"] if user_row else 75.0
+            
+            # 2. Get all exercises for this session
+            cursor.execute("SELECT exercise_id, exercise_key FROM exercises WHERE session_id = ?", (session_id,))
+            exercises = cursor.fetchall()
+            
+            total_session_calories = 0.0
+            
+            for ex in exercises:
+                ex_id = ex["exercise_id"]
+                ex_key = ex["exercise_key"]
+                
+                # Get MET value
+                from config.exercise_library import EXERCISE_LIBRARY
+                met = EXERCISE_LIBRARY.get(ex_key, {}).get("met_value", 3.0)
+                
+                # Get total duration of all sets for this exercise
+                cursor.execute("SELECT SUM(duration_seconds) as total_dur FROM sets WHERE exercise_id = ?", (ex_id,))
+                dur_row = cursor.fetchone()
+                total_dur_seconds = dur_row["total_dur"] if (dur_row and dur_row["total_dur"]) else 0.0
+                
+                # Calculate calories for this exercise (MET * weight * hours)
+                ex_calories = met * weight * (total_dur_seconds / 3600.0)
+                total_session_calories += ex_calories
+                
+                # Update exercise calories
+                cursor.execute("UPDATE exercises SET calories_burned = ? WHERE exercise_id = ?", (ex_calories, ex_id))
+                
+            # 3. Finalize session with end_time, duration, and total_calories_burned
+            cursor.execute("SELECT start_time FROM sessions WHERE session_id = ?", (session_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            
+            start_time_str = row["start_time"]
+            start_time = datetime.fromisoformat(start_time_str)
+            end_time = datetime.now()
+            duration_mins = max(0.1, (end_time - start_time).total_seconds() / 60.0)
+            
+            cursor.execute("""
+                UPDATE sessions 
+                SET end_time = ?, total_duration_mins = ?, total_calories_burned = ?, notes = ?
+                WHERE session_id = ?
+            """, (end_time.isoformat(), duration_mins, total_session_calories, notes, session_id))
+            
+            # Retrieve updated session
+            cursor.execute("SELECT * FROM sessions WHERE session_id = ?", (session_id,))
+            final_session = dict(cursor.fetchone())
+            return final_session
+    finally:
         conn.close()
-        return None
-    
-    start_time_str = row["start_time"]
-    start_time = datetime.fromisoformat(start_time_str)
-    end_time = datetime.now()
-    duration_mins = max(0.1, (end_time - start_time).total_seconds() / 60.0)
-    
-    cursor.execute("""
-        UPDATE sessions 
-        SET end_time = ?, total_duration_mins = ?, total_calories_burned = ?, notes = ?
-        WHERE session_id = ?
-    """, (end_time.isoformat(), duration_mins, total_session_calories, notes, session_id))
-    
-    conn.commit()
-    
-    # Retrieve updated session
-    cursor.execute("SELECT * FROM sessions WHERE session_id = ?", (session_id,))
-    final_session = dict(cursor.fetchone())
-    conn.close()
-    
-    return final_session

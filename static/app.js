@@ -1077,6 +1077,10 @@ function endSet() {
 
 // Discard Set
 function discardSet() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   logSetModal.classList.remove('active');
   resetSetStats();
   workoutStartTime = Date.now();
@@ -1154,6 +1158,10 @@ async function saveSet() {
 // End current session
 async function endSession() {
   isSending = false;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   stopFrameLoop();
   if (socket) {
     socket.close();
