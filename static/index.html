@@ -238,7 +238,7 @@
             </div>
             <div class="form-group col-3">
               <label id="modalRepsLabel">Reps</label>
-              <input type="text" id="modalReps" readonly class="form-input-readonly">
+              <input type="number" id="modalReps" min="0" step="1" required class="form-input">
             </div>
             <div class="form-group col-3">
               <label>Form Score</label>
@@ -248,7 +248,18 @@
 
           <div class="form-group">
             <label for="weightInput">Weight (kg)</label>
-            <input type="number" id="weightInput" min="0" step="0.5" value="0" class="form-input">
+            <div style="display: flex; gap: 8px;">
+              <input type="number" id="weightInput" min="0" step="0.5" value="0" class="form-input" style="flex: 1;">
+              <select id="weightModeSelect" class="form-input" style="width: 120px;">
+                <option value="total">Total</option>
+                <option value="per_side">Per Side</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="setDurationInput">Set Duration (seconds) <span style="font-size: 0.85em; color: #888;">(optional)</span></label>
+            <input type="number" id="setDurationInput" min="0" step="0.1" placeholder="e.g. 30" class="form-input">
           </div>
 
           <div class="form-group">

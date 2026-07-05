@@ -74,6 +74,7 @@ def init_db():
       set_number INTEGER NOT NULL,
       reps_counted INTEGER DEFAULT 0,
       weight_kg REAL DEFAULT 0,
+      weight_mode TEXT DEFAULT 'total',
       rpe INTEGER,
       avg_form_score REAL,
       pain_flag BOOLEAN DEFAULT 0,
@@ -86,6 +87,11 @@ def init_db():
     
     try:
         cursor.execute("ALTER TABLE sets ADD COLUMN duration_seconds REAL DEFAULT 0.0;")
+    except sqlite3.OperationalError:
+        pass # Already migrated
+
+    try:
+        cursor.execute("ALTER TABLE sets ADD COLUMN weight_mode TEXT DEFAULT 'total';")
     except sqlite3.OperationalError:
         pass # Already migrated
 
@@ -390,14 +396,14 @@ def get_or_create_exercise(session_id, exercise_key, display_name):
     conn.close()
     return exercise_id
 
-def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location, duration_seconds=0.0):
+def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location, duration_seconds=0.0, weight_mode='total'):
     conn = get_connection()
     cursor = conn.cursor()
     
     cursor.execute("""
-        INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, rpe, avg_form_score, pain_flag, pain_location, duration_seconds)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location, duration_seconds))
+        INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, weight_mode, rpe, avg_form_score, pain_flag, pain_location, duration_seconds)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (exercise_id, set_number, reps, weight, weight_mode, rpe, form_score, pain_flag, pain_location, duration_seconds))
     
     # Update exercise summary stats
     cursor.execute("SELECT reps_counted, avg_form_score FROM sets WHERE exercise_id = ?", (exercise_id,))

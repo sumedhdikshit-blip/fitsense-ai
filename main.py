@@ -144,7 +144,8 @@ def log_set(data: models.SetLogRequest):
         form_score=data.avg_form_score,
         pain_flag=data.pain_flag,
         pain_location=data.pain_location,
-        duration_seconds=data.duration_seconds
+        duration_seconds=data.duration_seconds,
+        weight_mode=data.weight_mode
     )
     return {"status": "success", "message": "Set logged successfully"}
 
@@ -315,6 +316,11 @@ async def websocket_workout(websocket: WebSocket):
                     continue
                 counter = RepCounter(exercise_key, ex_config)
                 
+                # Restore reps count if reconnecting mid-set
+                current_reps = data.get("current_reps", 0)
+                if current_reps > 0:
+                    counter.reps_counted = current_reps
+                
             # Perform pose detection
             results = detector.process_frame(frame)
             landmarks_dict = detector.get_landmarks_dict(results)
@@ -355,6 +361,22 @@ async def websocket_workout(websocket: WebSocket):
                                 1,
                                 cv2.LINE_AA
                             )
+            else:
+                # Signal tracking loss to the counter to reset time tracking
+                counter.update({}, {})
+                
+                # Overlay warning in red on the frame center
+                (tw, th), _ = cv2.getTextSize("TRACKING LOST - PAUSED", cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                tx = (width - tw) // 2
+                ty = (height - th) // 2
+                cv2.rectangle(frame, (tx - 15, ty - 25), (tx + tw + 15, ty + 15), (0, 0, 0), -1)
+                cv2.rectangle(frame, (tx - 15, ty - 25), (tx + tw + 15, ty + 15), (68, 23, 255), 2)
+                cv2.putText(frame, "TRACKING LOST - PAUSED", (tx, ty - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (68, 23, 255), 2, cv2.LINE_AA)
+                
+                # Prepend tracking lost warning to feedback list
+                tracking_feedback = {"message": "Pose lost - reposition yourself", "severity": "YELLOW"}
+                if not any(f["message"] == tracking_feedback["message"] for f in counter.latest_feedback):
+                    counter.latest_feedback = [tracking_feedback] + counter.latest_feedback
                             
             # Overlay HUD elements
             # 1. Reps / Hold timer (top-right)

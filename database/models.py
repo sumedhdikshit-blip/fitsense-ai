@@ -6,6 +6,7 @@ class SetLogRequest(BaseModel):
     set_number: int
     reps_counted: int
     weight_kg: float = 0.0
+    weight_mode: Optional[str] = "total"
     rpe: int = Field(..., ge=1, le=10)
     avg_form_score: float
     pain_flag: bool = False

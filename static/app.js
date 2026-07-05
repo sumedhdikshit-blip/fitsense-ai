@@ -4,6 +4,7 @@ let stream = null;
 let socket = null;
 let sendInterval = null;
 let isSending = false;
+let reconnectTimer = null;
 
 // Workout session & state variables
 let currentExerciseKey = "";
@@ -48,6 +49,8 @@ const modalReps = document.getElementById('modalReps');
 const modalRepsLabel = document.getElementById('modalRepsLabel');
 const modalScore = document.getElementById('modalScore');
 const weightInput = document.getElementById('weightInput');
+const weightModeSelect = document.getElementById('weightModeSelect');
+const setDurationInput = document.getElementById('setDurationInput');
 const rpeInput = document.getElementById('rpeInput');
 const rpeValue = document.getElementById('rpeValue');
 const painCheckbox = document.getElementById('painCheckbox');
@@ -455,13 +458,15 @@ async function viewSessionDetails(sessionId) {
         const isExHold = (ex.exercise_key.includes("plank") || ex.exercise_key.includes("sit") || ex.exercise_key.includes("hold"));
         if (ex.sets) {
           ex.sets.forEach(set => {
-            const setVol = isExHold ? `${set.reps_counted}s` : set.reps_counted;
+            const durSuffix = (set.duration_seconds && set.duration_seconds > 0) ? ` (${set.duration_seconds.toFixed(1)}s)` : '';
+            const setVol = (isExHold ? `${set.reps_counted}s` : set.reps_counted) + durSuffix;
+            const weightModeLabel = set.weight_mode === 'per_side' ? ' (per side)' : ' (total)';
             const tr = document.createElement('tr');
             tr.innerHTML = `
               <td>Set ${set.set_number}</td>
               <td><strong>${ex.exercise_name}</strong></td>
               <td>${setVol}</td>
-              <td>${set.weight_kg} kg</td>
+              <td>${set.weight_kg} kg${weightModeLabel}</td>
               <td>${set.rpe}</td>
               <td><span class="${getScoreColorClass(set.avg_form_score)}">${Math.round(set.avg_form_score)}%</span></td>
               <td>${set.pain_flag ? '<span class="score-red">YES (' + (set.pain_location || 'N/A') + ')</span>' : 'No'}</td>
@@ -840,6 +845,16 @@ async function startWorkout() {
   // Set workout start time to track duration
   workoutStartTime = Date.now();
   
+  // Set placeholder to opening state
+  canvasPlaceholder.style.display = 'flex';
+  canvasPlaceholder.innerHTML = `
+    <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+      <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+    </svg>
+    <p>Opening webcam stream...</p>
+  `;
+  
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { width: 640, height: 480 }
@@ -849,11 +864,34 @@ async function startWorkout() {
     canvasPlaceholder.style.display = 'none';
   } catch (error) {
     console.error('Webcam access error:', error);
-    alert('Failed to access webcam. Please verify camera permissions.');
+    
+    // Reset controls to idle state
     resetControls();
+    
+    // Show clear error in placeholder
+    canvasPlaceholder.style.display = 'flex';
+    canvasPlaceholder.innerHTML = `
+      <div style="text-align: center; color: #ff5252; padding: 20px;">
+        <svg style="width: 48px; height: 48px; margin-bottom: 12px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+        <p style="font-weight: 600; margin-bottom: 8px;">Webcam Access Denied</p>
+        <p style="font-size: 0.9em; color: #aaaaaa; max-width: 300px; margin: 0 auto;">Failed to access camera. Please allow camera permissions in your browser and try again.</p>
+      </div>
+    `;
+    
+    // Show error in feedback container
+    feedbackContainer.innerHTML = '<div class="feedback-badge badge-red">Webcam access denied. Please verify camera permissions.</div>';
+    
+    // Update status indicator
+    streamStatusEl.textContent = 'Error: Permission Denied';
+    streamStatusEl.style.color = '#ff5252';
+    
     return;
   }
   
+  // Reset status indicator color in case it was colored red previously
+  streamStatusEl.style.color = '';
   connectWebSocket();
 }
 
@@ -940,10 +978,25 @@ function connectWebSocket() {
   };
   
   socket.onclose = () => {
-    streamStatusEl.textContent = 'Disconnected';
     streamStatusEl.classList.remove('connected', 'tracking');
-    isSending = false;
     stopFrameLoop();
+    
+    if (isSending) {
+      // Connection dropped mid-set. Attempt reconnect with a visible status indicator.
+      streamStatusEl.textContent = 'Reconnecting...';
+      streamStatusEl.style.color = '#ffa726'; // amber warning color
+      
+      if (!reconnectTimer) {
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          connectWebSocket();
+        }, 2000);
+      }
+    } else {
+      streamStatusEl.textContent = 'Disconnected';
+      streamStatusEl.style.color = '';
+      isSending = false;
+    }
   };
 }
 
@@ -969,7 +1022,8 @@ function startFrameLoop() {
     
     const payload = {
       frame: base64Data,
-      exercise: currentExerciseKey
+      exercise: currentExerciseKey,
+      current_reps: lastRepsCounted
     };
     
     socket.send(JSON.stringify(payload));
@@ -997,10 +1051,8 @@ function endSet() {
   modalExercise.value = exName;
   
   if (isHoldMode) {
-    modalRepsLabel.textContent = "Hold Time";
-    const mins = Math.floor(lastRepsCounted / 60);
-    const secs = lastRepsCounted % 60;
-    modalReps.value = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    modalRepsLabel.textContent = "Hold Time (sec)";
+    modalReps.value = lastRepsCounted;
   } else {
     modalRepsLabel.textContent = "Reps";
     modalReps.value = lastRepsCounted;
@@ -1009,6 +1061,8 @@ function endSet() {
   modalScore.value = `${Math.round(lastAvgFormScore)}%`;
   
   weightInput.value = 0;
+  weightModeSelect.value = "total";
+  setDurationInput.value = "";
   rpeInput.value = 7;
   rpeValue.textContent = 7;
   painCheckbox.checked = false;
@@ -1044,13 +1098,20 @@ function resetSetStats() {
 
 // Save Set details
 async function saveSet() {
-  const duration = parseFloat(saveSetBtn.getAttribute('data-duration')) || 0.0;
+  const reps = parseInt(modalReps.value);
+  const repsCounted = isNaN(reps) ? lastRepsCounted : reps;
+  
+  let duration = parseFloat(setDurationInput.value);
+  if (isNaN(duration)) {
+    duration = parseFloat(saveSetBtn.getAttribute('data-duration')) || 0.0;
+  }
   
   const payload = {
     exercise_key: currentExerciseKey,
     set_number: currentSetNumber,
-    reps_counted: lastRepsCounted,
+    reps_counted: repsCounted,
     weight_kg: parseFloat(weightInput.value) || 0,
+    weight_mode: weightModeSelect.value || "total",
     rpe: parseInt(rpeInput.value),
     avg_form_score: lastAvgFormScore,
     pain_flag: painCheckbox.checked,
@@ -1069,7 +1130,7 @@ async function saveSet() {
       currentSetNumber++;
       
       sessionSets++;
-      sessionReps += lastRepsCounted;
+      sessionReps += repsCounted;
       if (sessionSets === 1) {
         sessionAvgScore = lastAvgFormScore;
       } else {
