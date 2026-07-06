@@ -22,7 +22,7 @@ async function fetchRecentSessions() {
     const sessions = await res.json();
 
     if (sessions.length === 0) {
-      historyBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #aaaaaa;">No workout history found. Log a session to get started.</td></tr>`;
+      historyBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #aaaaaa; padding: 30px 0;">No sessions yet — start a workout to see your stats here</td></tr>`;
       return;
     }
 

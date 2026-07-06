@@ -168,7 +168,7 @@ function drawWeightChart(data) {
     ctx.fillStyle = '#aaaaaa';
     ctx.font = '13px Inter';
     ctx.textAlign = 'center';
-    ctx.fillText('No weight history data available. Log weight to begin.', canvas.width / 2, canvas.height / 2);
+    ctx.fillText('No weight entries logged yet. Log your weight to see your progress chart.', canvas.width / 2, canvas.height / 2);
     weightChangeDisplay.textContent = '-- kg';
     return;
   }
