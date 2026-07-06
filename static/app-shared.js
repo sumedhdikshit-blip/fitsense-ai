@@ -25,6 +25,7 @@ function injectNav(activePage) {
     { id: 'workout',  label: 'Workout',  href: '/workout'  },
     { id: 'history',  label: 'History',  href: '/history'  },
     { id: 'profile',  label: 'Profile',  href: '/profile-page' },
+    { id: 'calculator', label: 'Calculator', href: '/calculator' },
   ];
 
   const navHtml = `

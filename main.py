@@ -613,6 +613,13 @@ def read_profile_page(request: Request):
         return RedirectResponse(url="/login.html")
     return FileResponse("static/profile.html")
 
+@app.get("/calculator")
+def read_calculator_page(request: Request):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login.html")
+    return FileResponse("static/calculator.html")
+
 @app.post("/experimental/risk-estimate")
 @limiter.limit("10/minute")
 def risk_estimate(request: Request, data: models.RiskEstimateRequest, user_id: int = Depends(get_current_user_id)):
