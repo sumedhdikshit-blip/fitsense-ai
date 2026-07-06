@@ -72,3 +72,8 @@ class RiskEstimateRequest(BaseModel):
     sleep_hours: Optional[float] = Field(None, ge=0, le=24)
     exercise_freq: Optional[str] = Field(None, pattern="^(none|1-2 times/week|3-5 times/week|daily)$")
     alcohol_consumption: Optional[str] = Field(None, pattern="^(none|low|moderate|high)$")
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8)
+    confirm_new_password: str

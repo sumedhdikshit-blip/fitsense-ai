@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('saveProfileBtn').addEventListener('click', saveProfile);
   document.getElementById('estimateRiskBtn').addEventListener('click', calculateRiskEstimate);
+  document.getElementById('changePasswordBtn').addEventListener('click', changePassword);
 });
 
 async function loadProfileIntoForm() {
@@ -124,6 +125,73 @@ async function calculateRiskEstimate() {
   } finally {
     btn.disabled = false;
     btn.textContent = '📊 Calculate Exploratory Estimate';
+  }
+}
+
+async function changePassword() {
+  const currentPassword = document.getElementById('currentPassword').value;
+  const newPassword = document.getElementById('newPassword').value;
+  const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+
+  const btn = document.getElementById('changePasswordBtn');
+  const errBox = document.getElementById('passwordErrorBox');
+  const msg = document.getElementById('passwordSavedMsg');
+
+  btn.disabled = true;
+  errBox.style.display = 'none';
+  msg.style.display = 'none';
+
+  if (!currentPassword || !newPassword || !confirmNewPassword) {
+    errBox.textContent = 'Please fill in all password fields.';
+    errBox.style.display = 'block';
+    btn.disabled = false;
+    return;
+  }
+
+  if (newPassword.length < 8) {
+    errBox.textContent = 'New password must be at least 8 characters long.';
+    errBox.style.display = 'block';
+    btn.disabled = false;
+    return;
+  }
+
+  if (newPassword !== confirmNewPassword) {
+    errBox.textContent = 'New passwords do not match.';
+    errBox.style.display = 'block';
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    const res = await fetch('/profile/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_new_password: confirmNewPassword
+      })
+    });
+
+    if (res.ok) {
+      // Clear inputs
+      document.getElementById('currentPassword').value = '';
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmNewPassword').value = '';
+
+      msg.style.display = 'inline';
+      setTimeout(() => { msg.style.display = 'none'; }, 3000);
+    } else {
+      const err = await res.json();
+      errBox.textContent = err.detail || 'Password change failed.';
+      errBox.style.display = 'block';
+    }
+  } catch (e) {
+    console.error('changePassword error:', e);
+    errBox.textContent = 'An unexpected network error occurred.';
+    errBox.style.display = 'block';
+  } finally {
+    btn.disabled = false;
   }
 }
 

@@ -315,6 +315,17 @@ def get_user_by_username(username):
     conn.close()
     return dict(row) if row else None
 
+def update_user_password(user_id, hashed_password):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE users 
+        SET password_hash = ?
+        WHERE user_id = ?
+    """, (hashed_password, user_id))
+    conn.commit()
+    conn.close()
+
 def get_admin_users_summary():
     conn = get_connection()
     cursor = conn.cursor()

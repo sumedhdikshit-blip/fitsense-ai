@@ -261,6 +261,23 @@ def update_profile(data: models.ProfileRequest, user_id: int = Depends(get_curre
     )
     return {"status": "success", "message": "Profile updated successfully"}
 
+@app.post("/profile/change-password")
+def change_password(data: models.PasswordChangeRequest, user_id: int = Depends(get_current_user_id)):
+    user = db.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    if not db.verify_password(data.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Incorrect current password.")
+
+    if data.new_password != data.confirm_new_password:
+        raise HTTPException(status_code=400, detail="New passwords do not match.")
+
+    # Update password hash
+    new_hash = db.hash_password(data.new_password)
+    db.update_user_password(user_id, new_hash)
+    return {"status": "success", "message": "Password changed successfully."}
+
 # --- Part 2 Weight Endpoints ---
 
 @app.get("/weight/history")

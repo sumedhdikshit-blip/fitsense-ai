@@ -223,6 +223,33 @@
       </div>
     </div>
 
+    <!-- Change Password Section Card -->
+    <div class="profile-page-card" style="margin-top: 24px;">
+      <h2>Change Password</h2>
+      
+      <div class="form-group">
+        <label for="currentPassword">Current Password</label>
+        <input type="password" id="currentPassword" placeholder="••••••••" class="form-input" required>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group col-6">
+          <label for="newPassword">New Password (min 8 chars)</label>
+          <input type="password" id="newPassword" placeholder="••••••••" class="form-input" required>
+        </div>
+        <div class="form-group col-6">
+          <label for="confirmNewPassword">Confirm New Password</label>
+          <input type="password" id="confirmNewPassword" placeholder="••••••••" class="form-input" required>
+        </div>
+      </div>
+      
+      <div class="profile-save-row">
+        <button id="changePasswordBtn" class="btn btn-success">Update Password</button>
+        <span class="profile-saved-msg" id="passwordSavedMsg" style="color: var(--accent-color);">✓ Password updated!</span>
+      </div>
+      <div id="passwordErrorBox" class="error-box" style="display: none; margin-top: 16px; width: 100%;"></div>
+    </div>
+
     <!-- Experimental Section Card (visually and contextually separate) -->
     <div class="experimental-card">
       <h3>
