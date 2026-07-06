@@ -648,9 +648,15 @@ def finalize_session(session_id, notes=""):
                 return None
             
             start_time_str = row["start_time"]
-            start_time = datetime.fromisoformat(start_time_str)
-            end_time = datetime.now()
-            duration_mins = max(0.1, (end_time - start_time).total_seconds() / 60.0)
+            try:
+                start_time = datetime.fromisoformat(start_time_str)
+                end_time = datetime.now()
+                duration_mins = max(0.1, (end_time - start_time).total_seconds() / 60.0)
+            except (ValueError, TypeError) as e:
+                import logging
+                logging.warning(f"Malformed start_time '{start_time_str}' in session finalization: {e}")
+                end_time = datetime.now()
+                duration_mins = 0.0
             
             cursor.execute("""
                 UPDATE sessions 

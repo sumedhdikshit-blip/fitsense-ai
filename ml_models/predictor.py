@@ -34,14 +34,24 @@ def predict_risk(features_dict: dict) -> dict:
     """
     # 1. Input Parsing & Case Normalization
     age = int(features_dict.get("age", 30))
-    height_cm = float(features_dict.get("height_cm", 170.0))
-    weight_kg = float(features_dict.get("weight_kg", 70.0))
+    height_cm_val = features_dict.get("height_cm")
+    height_cm = float(height_cm_val) if height_cm_val is not None else 0.0
+    weight_kg_val = features_dict.get("weight_kg")
+    weight_kg = float(weight_kg_val) if weight_kg_val is not None else 0.0
     
     # Calculate BMI if missing or invalid
-    bmi = float(features_dict.get("bmi", 0.0))
-    if bmi <= 0.0:
-        height_m = height_cm / 100.0
-        bmi = weight_kg / (height_m ** 2) if height_m > 0 else 22.0
+    bmi_val = features_dict.get("bmi")
+    bmi = float(bmi_val) if bmi_val is not None else None
+    
+    if bmi is None or bmi <= 0.0:
+        if height_cm == 0.0:
+            bmi = None
+        else:
+            height_m = height_cm / 100.0
+            if height_m == 0.0:
+                bmi = None
+            else:
+                bmi = weight_kg / (height_m ** 2)
     
     stress_level = int(features_dict.get("stress_level", 5))
     sleep_hours = float(features_dict.get("sleep_hours", 7.0))
@@ -102,7 +112,9 @@ def predict_risk(features_dict: dict) -> dict:
     )
 
     # bmi_penalty calculation
-    if 18.5 <= bmi <= 24.9:
+    if bmi is None:
+        bmi_pen = 0.0
+    elif 18.5 <= bmi <= 24.9:
         bmi_pen = 0.0
     elif bmi < 18.5:
         bmi_pen = (18.5 - bmi) / 18.5
@@ -133,7 +145,7 @@ def predict_risk(features_dict: dict) -> dict:
         gender_score,
         height_cm,
         weight_kg,
-        bmi,
+        0.0 if bmi is None else bmi,
         smoker_val,
         diet_score,
         stress_level,

@@ -630,8 +630,16 @@ def risk_estimate(data: models.RiskEstimateRequest, user_id: int = Depends(get_c
     # Calculate BMI on the fly if not provided
     bmi = data.bmi
     if bmi is None or bmi <= 0.0:
-        height_m = features["height_cm"] / 100.0
-        bmi = features["weight_kg"] / (height_m ** 2) if height_m > 0 else 22.0
+        height_cm = features.get("height_cm")
+        weight_kg = features.get("weight_kg")
+        if height_cm is None or height_cm == 0 or weight_kg is None:
+            bmi = None
+        else:
+            height_m = height_cm / 100.0
+            if height_m == 0:
+                bmi = None
+            else:
+                bmi = weight_kg / (height_m ** 2)
     features["bmi"] = bmi
 
     try:
