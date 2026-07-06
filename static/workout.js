@@ -6,6 +6,8 @@ let sendInterval = null;
 let isSending = false;
 let reconnectTimer = null;
 let pingTimeout = null;
+let reconnectAttempts = 0;
+let currentReconnectDelay = 1000; // start at 1s
 
 let currentExerciseKey = '';
 let currentSetNumber = 1;
@@ -217,6 +219,8 @@ function connectWebSocket() {
   socket = new WebSocket(`${protocol}//${window.location.host}/ws/workout`);
 
   socket.onopen = () => {
+    reconnectAttempts = 0;
+    currentReconnectDelay = 1000;
     streamStatusEl.textContent = 'Connected';
     streamStatusEl.classList.add('connected');
     streamStatusEl.classList.remove('tracking');
@@ -285,10 +289,21 @@ function connectWebSocket() {
     streamStatusEl.classList.remove('connected', 'tracking');
     stopFrameLoop();
     if (isSending) {
-      streamStatusEl.textContent = 'Reconnecting...';
+      if (reconnectAttempts >= 10) {
+        streamStatusEl.textContent = 'Connection lost, please refresh';
+        streamStatusEl.style.color = '#ef5350';
+        isSending = false;
+        return;
+      }
+      streamStatusEl.textContent = `Reconnecting... (Attempt ${reconnectAttempts + 1}/10)`;
       streamStatusEl.style.color = '#ffa726';
       if (!reconnectTimer) {
-        reconnectTimer = setTimeout(() => { reconnectTimer = null; connectWebSocket(); }, 2000);
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          reconnectAttempts++;
+          currentReconnectDelay = Math.min(30000, currentReconnectDelay * 2);
+          connectWebSocket();
+        }, currentReconnectDelay);
       }
     } else {
       streamStatusEl.textContent = 'Disconnected';
