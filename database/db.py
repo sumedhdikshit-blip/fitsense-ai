@@ -481,12 +481,12 @@ def get_recent_sessions(user_id, limit=10):
             s.total_reps, 
             s.avg_form_score,
             s.total_calories_burned,
-            (SELECT GROUP_CONCAT(exercise_name, ', ') FROM exercises WHERE session_id = s.session_id) as exercises_done
+            (SELECT GROUP_CONCAT(exercise_name, ?) FROM exercises WHERE session_id = s.session_id) as exercises_done
         FROM sessions s
         WHERE s.user_id = ?
         ORDER BY s.session_id DESC
         LIMIT ?
-    """, (user_id, limit))
+    """, (', ', user_id, limit))
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]

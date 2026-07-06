@@ -71,14 +71,14 @@ fitsense-ai/
 ## 🧪 Key Features & Verification
 
 ### 1. Split-Page Navigation
-- The main app is organized into five clean sections: **Overview**, **Workout**, **History**, **Profile**, and **Health Risk**.
+- The main app is organized into four clean pages: **Overview**, **Workout**, **History**, and **Profile**.
 - A persistent, highlighted navigation bar coordinates moving between pages.
 
 ### 2. Manual Workout Logging
 - In the **Workout** page, users can log workouts without using a webcam.
-- Selecting an exercise, sets count, reps per set, RPE, and weight (with a explicit toggle for "total" vs "per side") maps data onto the same SQLite tables without faking form scores.
+- Selecting an exercise, sets count, reps per set, RPE, and weight (with an explicit toggle for "total" vs "per side") maps data onto the same SQLite tables without faking form scores.
 
 ### 3. Chronic Disease Risk Prediction
-- Users can train a custom ensemble model using `chronic_disease_pipeline_final.py` from `synthetic_health_lifestyle.csv`.
-- Under the **Health Risk** tab, users can request predictions based on age, gender, height/weight, sleep, stress, and lifestyle metrics.
+- Users can train a custom ensemble model using the training pipeline.
+- In the **Profile** page, users can calculate exploratory risk estimates using the 'Experimental: Chronic Disease Risk Model' card, which pulls user parameters from the database.
 

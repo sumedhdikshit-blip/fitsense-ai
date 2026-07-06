@@ -11,6 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime
 from typing import Optional
 
+import os
 from config.exercise_library import EXERCISE_LIBRARY
 from database import db, models
 from pose.detector import PoseDetector, calculate_angle
@@ -24,7 +25,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="FitSense AI Core Engine", lifespan=lifespan)
-app.add_middleware(SessionMiddleware, secret_key="fitsense_secret_session_key_123")
+app.add_middleware(SessionMiddleware, secret_key=os.environ.get("SESSION_SECRET", "dev-only-fallback-key"))
 
 def get_current_user_id(request: Request) -> int:
     user_id = request.session.get("user_id")
