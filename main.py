@@ -6,12 +6,15 @@ import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, Depends, status
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse
+from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime
 from typing import Optional
-
 import os
+
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from config.exercise_library import EXERCISE_LIBRARY
 from database import db, models
 from pose.detector import PoseDetector, calculate_angle
@@ -24,7 +27,17 @@ async def lifespan(app: FastAPI):
     db.init_db()
     yield
 
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="FitSense AI Core Engine", lifespan=lifespan)
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Too many requests. Please try again later."}
+    )
+
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get("SESSION_SECRET", "dev-only-fallback-key"))
 
 def get_current_user_id(request: Request) -> int:
@@ -137,6 +150,7 @@ def get_exercises():
 # ==================== AUTHENTICATION & ADMIN ENDPOINTS ====================
 
 @app.post("/api/auth/register")
+@limiter.limit("3/minute")
 def register_user(data: models.UserRegisterRequest, request: Request):
     try:
         user_id = db.create_user(
@@ -150,6 +164,7 @@ def register_user(data: models.UserRegisterRequest, request: Request):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/auth/login")
+@limiter.limit("5/minute")
 def login_user(data: models.UserLoginRequest, request: Request):
     user = db.authenticate_user(data.username, data.password)
     if not user:
@@ -599,7 +614,8 @@ def read_profile_page(request: Request):
     return FileResponse("static/profile.html")
 
 @app.post("/experimental/risk-estimate")
-def risk_estimate(data: models.RiskEstimateRequest, user_id: int = Depends(get_current_user_id)):
+@limiter.limit("10/minute")
+def risk_estimate(request: Request, data: models.RiskEstimateRequest, user_id: int = Depends(get_current_user_id)):
     from ml_models.predictor import predict_risk
 
     profile = db.get_profile(user_id) or {}
