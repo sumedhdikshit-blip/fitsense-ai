@@ -135,6 +135,10 @@ def get_nutrition_breakdown_internal(user_id, date_str, profile):
 
 # ==================== ENDPOINTS ====================
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 @app.get("/exercises")
 def get_exercises():
     return [
