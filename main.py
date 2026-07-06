@@ -249,7 +249,14 @@ def update_profile(data: models.ProfileRequest, user_id: int = Depends(get_curre
         weight=data.weight_kg,
         height=data.height_cm,
         sex=data.sex,
-        fitness_goal=data.fitness_goal
+        fitness_goal=data.fitness_goal,
+        gender=data.gender,
+        diet_quality=data.diet_quality,
+        stress_level=data.stress_level,
+        sleep_hours=data.sleep_hours,
+        smoker=data.smoker,
+        exercise_freq=data.exercise_freq,
+        alcohol_consumption=data.alcohol_consumption
     )
     return {"status": "success", "message": "Profile updated successfully"}
 
@@ -572,6 +579,73 @@ def read_profile_page(request: Request):
     if not user_id:
         return RedirectResponse(url="/login.html")
     return FileResponse("static/profile.html")
+
+@app.post("/experimental/risk-estimate")
+def risk_estimate(data: models.RiskEstimateRequest, user_id: int = Depends(get_current_user_id)):
+    from ml_models.predictor import predict_risk
+
+    profile = db.get_profile(user_id) or {}
+    
+    required_keys = [
+        "age",
+        "gender",
+        "height_cm",
+        "weight_kg",
+        "smoker",
+        "diet_quality",
+        "stress_level",
+        "sleep_hours",
+        "exercise_freq",
+        "alcohol_consumption"
+    ]
+    
+    features = {}
+    missing_fields = []
+    
+    # Prioritize request body values, fallback to database profile values
+    for key in required_keys:
+        val = getattr(data, key)
+        if val is not None:
+            features[key] = val
+        else:
+            db_val = profile.get(key)
+            # Match sex to gender if gender is not set
+            if key == "gender" and (db_val is None or db_val == ""):
+                db_val = profile.get("sex")
+                if db_val == "unspecified":
+                    db_val = None
+                    
+            if db_val is not None and db_val != "":
+                features[key] = db_val
+            else:
+                missing_fields.append(key)
+                
+    if missing_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required fields for risk estimation: {', '.join(missing_fields)}"
+        )
+        
+    # Calculate BMI on the fly if not provided
+    bmi = data.bmi
+    if bmi is None or bmi <= 0.0:
+        height_m = features["height_cm"] / 100.0
+        bmi = features["weight_kg"] / (height_m ** 2) if height_m > 0 else 22.0
+    features["bmi"] = bmi
+
+    try:
+        result = predict_risk(features)
+        return {
+            "predicted_probability": result["risk_probability"],
+            "predicted_class": result["predicted_class"],
+            "confidence_note": (
+                "This model showed no meaningful correlation between inputs and outcome "
+                "during training (max |r| = 0.03) — treat this as exploratory only, "
+                "not a real health assessment."
+            )
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Model execution failed: {str(e)}")
 
 @app.get("/admin")
 def read_admin(request: Request):

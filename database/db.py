@@ -41,6 +41,13 @@ def init_db():
       height_cm REAL,
       fitness_goal TEXT,
       sex TEXT DEFAULT 'unspecified',
+      gender TEXT,
+      diet_quality TEXT,
+      stress_level INTEGER,
+      sleep_hours REAL,
+      smoker TEXT,
+      exercise_freq TEXT,
+      alcohol_consumption TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
@@ -63,6 +70,41 @@ def init_db():
 
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN diet_quality TEXT;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN stress_level INTEGER;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN sleep_hours REAL;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN smoker TEXT;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN exercise_freq TEXT;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN alcohol_consumption TEXT;")
     except sqlite3.OperationalError:
         pass
         
@@ -303,15 +345,17 @@ def get_profile(user_id):
     conn.close()
     return dict(row) if row else None
 
-def save_profile(user_id, name, age, weight, height, sex, fitness_goal):
+def save_profile(user_id, name, age, weight, height, sex, fitness_goal, gender=None, diet_quality=None, stress_level=None, sleep_hours=None, smoker=None, exercise_freq=None, alcohol_consumption=None):
     conn = get_connection()
     cursor = conn.cursor()
     
     cursor.execute("""
         UPDATE users 
-        SET name = ?, age = ?, weight_kg = ?, height_cm = ?, sex = ?, fitness_goal = ?
+        SET name = ?, age = ?, weight_kg = ?, height_cm = ?, sex = ?, fitness_goal = ?,
+            gender = ?, diet_quality = ?, stress_level = ?, sleep_hours = ?, smoker = ?,
+            exercise_freq = ?, alcohol_consumption = ?
         WHERE user_id = ?
-    """, (name, age, weight, height, sex, fitness_goal, user_id))
+    """, (name, age, weight, height, sex, fitness_goal, gender, diet_quality, stress_level, sleep_hours, smoker, exercise_freq, alcohol_consumption, user_id))
     
     # Log to weight history automatically
     today_str = datetime.now().strftime("%Y-%m-%d")

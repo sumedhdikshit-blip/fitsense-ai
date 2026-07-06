@@ -25,6 +25,13 @@ class ProfileRequest(BaseModel):
     height_cm: float = Field(..., ge=50, le=300)
     sex: str = Field("unspecified", pattern="^(male|female|unspecified)$")
     fitness_goal: Optional[str] = ""
+    gender: Optional[str] = Field(None, pattern="^(male|female|other)$")
+    diet_quality: Optional[str] = Field(None, pattern="^(poor|average|good|excellent)$")
+    stress_level: Optional[int] = Field(None, ge=1, le=10)
+    sleep_hours: Optional[float] = Field(None, ge=0, le=24)
+    smoker: Optional[str] = Field(None, pattern="^(yes|no)$")
+    exercise_freq: Optional[str] = Field(None, pattern="^(none|1-2 times/week|3-5 times/week|daily)$")
+    alcohol_consumption: Optional[str] = Field(None, pattern="^(none|low|moderate|high)$")
 
 class WeightLogRequest(BaseModel):
     weight_kg: float = Field(..., ge=10, le=500)
@@ -52,3 +59,16 @@ class UserRegisterRequest(BaseModel):
 class UserLoginRequest(BaseModel):
     username: str
     password: str
+
+class RiskEstimateRequest(BaseModel):
+    age: Optional[int] = Field(None, ge=1, le=120)
+    gender: Optional[str] = Field(None, pattern="^(male|female|other)$")
+    height_cm: Optional[float] = Field(None, ge=50, le=300)
+    weight_kg: Optional[float] = Field(None, ge=10, le=500)
+    bmi: Optional[float] = Field(None, ge=0)
+    smoker: Optional[str] = Field(None, pattern="^(yes|no)$")
+    diet_quality: Optional[str] = Field(None, pattern="^(poor|average|good|excellent)$")
+    stress_level: Optional[int] = Field(None, ge=1, le=10)
+    sleep_hours: Optional[float] = Field(None, ge=0, le=24)
+    exercise_freq: Optional[str] = Field(None, pattern="^(none|1-2 times/week|3-5 times/week|daily)$")
+    alcohol_consumption: Optional[str] = Field(None, pattern="^(none|low|moderate|high)$")

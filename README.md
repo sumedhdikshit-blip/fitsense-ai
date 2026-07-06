@@ -1,8 +1,6 @@
-# FitSense AI — Part 1: Core Engine & Data-Driven Exercise System
+# FitSense AI — Core Engine & Data-Driven Health System
 
-FitSense AI is a next-generation fitness web application that uses computer vision to track body posture, count exercise repetitions, score movement form in real-time, and log detailed workout statistics.
-
-This repository implements the robust, data-driven core engine (Part 1 of a 2-part build) which is designed to scale dynamically from 3 to 50 exercises with zero code changes.
+FitSense AI is a next-generation fitness web application that uses computer vision to track body posture, count exercise repetitions, score movement form in real-time, log detailed workout statistics, and predict chronic disease risk based on lifestyle metrics.
 
 ---
 
@@ -11,6 +9,7 @@ This repository implements the robust, data-driven core engine (Part 1 of a 2-pa
 - **Pose Detection:** MediaPipe Pose
 - **Video Processing:** OpenCV
 - **Database:** SQLite
+- **Machine Learning:** Scikit-Learn + XGBoost + CatBoost (Ensemble Classifier)
 - **Frontend:** HTML5 + Vanilla CSS + JavaScript
 - **Streaming:** WebSockets
 
@@ -19,19 +18,26 @@ This repository implements the robust, data-driven core engine (Part 1 of a 2-pa
 ## 📂 File Structure
 ```
 fitsense-ai/
-  main.py                 — FastAPI application & WebSocket handlers
+  main.py                 — FastAPI application, API endpoints & WebSocket handlers
+  chronic_disease_pipeline_final.py — ML model training pipeline
+  synthetic_health_lifestyle.csv — Health metrics dataset
   config/
-    exercise_library.py   — Single source of truth config (all exercise definitions)
+    exercise_library.py   — Definition of all exercises & their MET scores
   database/
     db.py                 — SQLite queries, table creations & migrations
-    models.py             — Pydantic schemas for endpoint request validations
+    models.py             — Pydantic validation schemas
   pose/
-    detector.py           — MediaPipe initialization & stable vector math angles calculations
-    counter.py            — Generic state machine & form evaluator (parameterized by config)
+    detector.py           — MediaPipe vector calculations for joints
+    counter.py            — Generic state machine for reps & hold times
   static/
-    index.html            — Dashboard layout
-    style.css             — Custom premium dark theme style system
-    app.js                — Camera capturer, WebSocket streaming loop & REST integrations
+    app-shared.js         — Shared authentication, navigation, and user context
+    overview.html / js    — Dashboard calorie counters & weight tracking charts
+    workout.html / js     — Webcam repetition counter & manual logging controls
+    history.html / js     — Past workouts & detailed set histories
+    profile.html / js     — Dynamic user details & BMR configuration card
+    login.html            — Secure credential login & admin redirect
+    admin/
+      admin.html / js     — Global admin diagnostic dashboard
   requirements.txt        — Dependencies list
   README.md               — Project documentation
 ```
@@ -62,19 +68,17 @@ fitsense-ai/
 
 ---
 
-## 🧪 Verification Checklists
+## 🧪 Key Features & Verification
 
-### 1. Dynamic Exercises Configuration
-- On application load, the frontend makes a `GET /exercises` call.
-- The dropdown list is dynamically generated displaying **Squat**, **Pushup**, and **Bicep Curl** categorized cleanly.
+### 1. Split-Page Navigation
+- The main app is organized into five clean sections: **Overview**, **Workout**, **History**, **Profile**, and **Health Risk**.
+- A persistent, highlighted navigation bar coordinates moving between pages.
 
-### 2. Rep Counter & Stage Machine
-- Selecting an exercise sets up its thresholds and primary angles.
-- **Squats/Pushups:** Down threshold = 90°, Up threshold = 160°. Transitioning under 90° sets stage to `DOWN`. Climbing above 160° registers 1 rep, changes stage to `UP`, evaluates form, and resets internal rep-stats.
-- **Bicep Curls:** Down threshold = 150° (arms extended), Up threshold = 40° (arms curled). Transitioning under 40° registers 1 rep, changes stage to `UP`. Straightening arms back above 150° resets stage to `DOWN`.
+### 2. Manual Workout Logging
+- In the **Workout** page, users can log workouts without using a webcam.
+- Selecting an exercise, sets count, reps per set, RPE, and weight (with a explicit toggle for "total" vs "per side") maps data onto the same SQLite tables without faking form scores.
 
-### 3. SQLite DB Integrity
-- The system automatically creates `fitsense.db` upon initial launch.
-- If the `users` table is empty, a default athlete is added.
-- Logging sets and ending sessions updates rows in `sessions`, `exercises`, and `sets` respectively.
-- Session summary list is reloaded from `GET /sessions/recent` and clicking "View Detail" retrieves complete set-by-set parameters.
+### 3. Chronic Disease Risk Prediction
+- Users can train a custom ensemble model using `chronic_disease_pipeline_final.py` from `synthetic_health_lifestyle.csv`.
+- Under the **Health Risk** tab, users can request predictions based on age, gender, height/weight, sleep, stress, and lifestyle metrics.
+
