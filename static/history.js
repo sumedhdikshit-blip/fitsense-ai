@@ -87,7 +87,7 @@ async function viewSessionDetails(sessionId) {
               <td>Set ${set.set_number}</td>
               <td><strong>${ex.exercise_name}</strong></td>
               <td>${setVol}</td>
-              <td>${set.weight_kg} kg${weightModeLabel}</td>
+              <td>${set.weight_kg} ${set.weight_unit || 'kg'}${weightModeLabel}</td>
               <td>${set.rpe}</td>
               <td><span class="${getScoreColorClass(set.avg_form_score)}">${Math.round(set.avg_form_score)}%</span></td>
               <td>${set.pain_flag ? `<span class="score-red">YES (${set.pain_location || 'N/A'})</span>` : 'No'}</td>

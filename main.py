@@ -775,7 +775,8 @@ def log_set(data: models.SetLogRequest, user_id: int = Depends(get_current_user_
         pain_flag=data.pain_flag,
         pain_location=data.pain_location,
         duration_seconds=data.duration_seconds,
-        weight_mode=data.weight_mode
+        weight_mode=data.weight_mode,
+        weight_unit=data.weight_unit
     )
     return {"status": "success", "message": "Set logged successfully", "session_id": session_id}
 

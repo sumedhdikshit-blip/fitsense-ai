@@ -2941,6 +2941,255 @@ EXERCISE_LIBRARY = {
         ],
         'description': 'Hold a dumbbell in each hand with a pronated grip and raise your upper arms to shoulder height, elbows bent 90 degrees. Rotate your forearms upward until they point to the ceiling (external rotation), then press the dumbbells overhead to full extension, reversing to return.'
     },
+
+    'hack_squat': {
+        'display_name': 'Hack Squat',
+        'category': 'lower_body',
+        'met_value': 5.5,
+        'mode': 'rep',
+        'angles': {
+            'back': ['left_shoulder', 'left_hip', 'left_ankle'],
+            'hip': ['left_shoulder', 'left_hip', 'left_knee'],
+            'left_knee': ['left_hip', 'left_knee', 'left_ankle'],
+            'right_knee': ['right_hip', 'right_knee', 'right_ankle']
+        },
+        'primary_angle': 'left_knee',
+        'down_threshold': 95,
+        'up_threshold': 155,
+        'form_rules': [
+            {'name': 'Not deep enough', 'check': 'primary_angle_gt_at_bottom:115', 'severity': 'YELLOW'},
+        ],
+        'description': 'Perform a squat on a hack squat machine, sliding down the guide rails and pressing back up.'
+    },
+
+    'barbell_squat': {
+        'display_name': 'Barbell Squat',
+        'category': 'lower_body',
+        'met_value': 6.0,
+        'mode': 'rep',
+        'angles': {
+            'back': ['left_shoulder', 'left_hip', 'left_ankle'],
+            'hip': ['left_shoulder', 'left_hip', 'left_knee'],
+            'left_knee': ['left_hip', 'left_knee', 'left_ankle'],
+            'right_knee': ['right_hip', 'right_knee', 'right_ankle']
+        },
+        'primary_angle': 'left_knee',
+        'down_threshold': 90,
+        'up_threshold': 160,
+        'form_rules': [
+            {'name': 'Knees caving in', 'check': 'knee_alignment_x', 'severity': 'RED'},
+            {'name': 'Not deep enough', 'check': 'primary_angle_gt_at_bottom:110', 'severity': 'YELLOW'},
+            {'name': 'Forward lean', 'check': 'back_angle_lt:45', 'severity': 'YELLOW'}
+        ],
+        'description': 'Place a barbell on your upper back and perform a squat, lowering your hips and pushing back up.'
+    },
+
+    'weighted_sandbag_squat': {
+        'display_name': 'Weighted Sandbag Squat',
+        'category': 'lower_body',
+        'met_value': 5.5,
+        'mode': 'rep',
+        'angles': {
+            'back': ['left_shoulder', 'left_hip', 'left_ankle'],
+            'hip': ['left_shoulder', 'left_hip', 'left_knee'],
+            'left_knee': ['left_hip', 'left_knee', 'left_ankle'],
+            'right_knee': ['right_hip', 'right_knee', 'right_ankle']
+        },
+        'primary_angle': 'left_knee',
+        'down_threshold': 90,
+        'up_threshold': 160,
+        'form_rules': [
+            {'name': 'Not deep enough', 'check': 'primary_angle_gt_at_bottom:110', 'severity': 'YELLOW'},
+        ],
+        'description': 'Hold a sandbag across your shoulders or chest and perform a squat, lowering your hips and standing back up.'
+    },
+
+    'leg_curl': {
+        'display_name': 'Leg Curl',
+        'category': 'lower_body',
+        'met_value': 3.0,
+        'mode': 'rep',
+        'angles': {
+            'left_knee': ['left_hip', 'left_knee', 'left_ankle'],
+            'right_knee': ['right_hip', 'right_knee', 'right_ankle']
+        },
+        'primary_angle': 'left_knee',
+        'down_threshold': 160,
+        'up_threshold': 85,
+        'form_rules': [
+            {'name': 'Incomplete curl', 'check': 'primary_angle_gt_at_top:100', 'severity': 'YELLOW'}
+        ],
+        'description': 'Curl your heels towards your glutes against resistance on a leg curl machine to target the hamstrings.'
+    },
+
+    'leg_extension': {
+        'display_name': 'Leg Extension',
+        'category': 'lower_body',
+        'met_value': 3.0,
+        'mode': 'rep',
+        'angles': {
+            'left_knee': ['left_hip', 'left_knee', 'left_ankle'],
+            'right_knee': ['right_hip', 'right_knee', 'right_ankle']
+        },
+        'primary_angle': 'left_knee',
+        'down_threshold': 90,
+        'up_threshold': 160,
+        'form_rules': [
+            {'name': 'Incomplete extension', 'check': 'primary_angle_lt_at_bottom:140', 'severity': 'YELLOW'}
+        ],
+        'description': 'Extend your legs straight against resistance on a leg extension machine to isolate the quadriceps.'
+    },
+
+    'seated_calf_raise': {
+        'display_name': 'Seated Calf Raise',
+        'category': 'lower_body',
+        'met_value': 2.0,
+        'mode': 'rep',
+        'angles': {
+            'left_knee': ['left_hip', 'left_knee', 'left_ankle']
+        },
+        'primary_angle': 'left_knee',
+        'down_threshold': 85,
+        'up_threshold': 105,
+        'form_rules': [],
+        'description': 'From a seated position with weight on your thighs, perform calf raises by raising and lowering your heels.'
+    },
+
+    'machine_lateral_raise': {
+        'display_name': 'Machine Lateral Raise',
+        'category': 'upper_body',
+        'met_value': 3.0,
+        'mode': 'rep',
+        'angles': {
+            'back': ['left_shoulder', 'left_hip', 'left_ankle'],
+            'left_shoulder': ['left_hip', 'left_shoulder', 'left_elbow']
+        },
+        'primary_angle': 'left_shoulder',
+        'down_threshold': 20,
+        'up_threshold': 85,
+        'form_rules': [],
+        'description': 'Raise your arms laterally on a shoulder lateral raise machine to isolate the lateral head of the deltoids.'
+    },
+
+    'wrist_curl': {
+        'display_name': 'Wrist Curl',
+        'category': 'upper_body',
+        'met_value': 2.0,
+        'mode': 'rep',
+        'angles': {
+            'left_elbow': ['left_shoulder', 'left_elbow', 'left_wrist']
+        },
+        'primary_angle': 'left_elbow',
+        'down_threshold': 90,
+        'up_threshold': 130,
+        'form_rules': [],
+        'description': 'Rest your forearms on your thighs or a bench and curl your wrists upward to build forearm strength.'
+    },
+
+    'triceps_extension_machine': {
+        'display_name': 'Triceps Extension Machine',
+        'category': 'upper_body',
+        'met_value': 3.0,
+        'mode': 'rep',
+        'angles': {
+            'left_elbow': ['left_shoulder', 'left_elbow', 'left_wrist']
+        },
+        'primary_angle': 'left_elbow',
+        'down_threshold': 90,
+        'up_threshold': 160,
+        'form_rules': [],
+        'description': 'Extend your elbows against resistance on a triceps extension machine.'
+    },
+
+    'incline_smith_machine_bench_press': {
+        'display_name': 'Incline Smith Machine Bench Press',
+        'category': 'upper_body',
+        'met_value': 5.5,
+        'mode': 'rep',
+        'angles': {
+            'left_elbow': ['left_shoulder', 'left_elbow', 'left_wrist']
+        },
+        'primary_angle': 'left_elbow',
+        'down_threshold': 80,
+        'up_threshold': 160,
+        'form_rules': [],
+        'description': 'Perform bench press on an incline bench set inside a Smith machine.'
+    },
+
+    'decline_smith_machine_bench_press': {
+        'display_name': 'Decline Smith Machine Bench Press',
+        'category': 'upper_body',
+        'met_value': 5.5,
+        'mode': 'rep',
+        'angles': {
+            'left_elbow': ['left_shoulder', 'left_elbow', 'left_wrist']
+        },
+        'primary_angle': 'left_elbow',
+        'down_threshold': 80,
+        'up_threshold': 160,
+        'form_rules': [],
+        'description': 'Perform bench press on a decline bench set inside a Smith machine.'
+    },
+
+    'smith_machine_shoulder_press': {
+        'display_name': 'Smith Machine Shoulder Press',
+        'category': 'upper_body',
+        'met_value': 5.5,
+        'mode': 'rep',
+        'angles': {
+            'left_elbow': ['left_shoulder', 'left_elbow', 'left_wrist']
+        },
+        'primary_angle': 'left_elbow',
+        'down_threshold': 80,
+        'up_threshold': 160,
+        'form_rules': [],
+        'description': 'Press the barbell overhead from a seated position inside a Smith machine.'
+    },
+
+    'rowing_back_machine': {
+        'display_name': 'Rowing Back Machine',
+        'category': 'upper_body',
+        'met_value': 5.0,
+        'mode': 'rep',
+        'angles': {
+            'left_elbow': ['left_shoulder', 'left_elbow', 'left_wrist']
+        },
+        'primary_angle': 'left_elbow',
+        'down_threshold': 150,
+        'up_threshold': 75,
+        'form_rules': [],
+        'description': 'Sit on the back rowing machine, grasp the handles, and pull them toward your abdomen.'
+    },
+
+    'cable_crunch': {
+        'display_name': 'Cable Crunch',
+        'category': 'core',
+        'met_value': 3.5,
+        'mode': 'rep',
+        'angles': {
+            'hip': ['left_shoulder', 'left_hip', 'left_knee']
+        },
+        'primary_angle': 'hip',
+        'down_threshold': 130,
+        'up_threshold': 95,
+        'form_rules': [],
+        'description': 'Kneel in front of a cable stack, hold the rope attachment behind your head, and contract your abs to pull your elbows to your knees.'
+    },
+
+    'ab_wheel_rollout': {
+        'display_name': 'Ab Wheel Rollout',
+        'category': 'core',
+        'met_value': 4.0,
+        'mode': 'rep',
+        'angles': {
+            'hip': ['left_shoulder', 'left_hip', 'left_knee']
+        },
+        'primary_angle': 'hip',
+        'down_threshold': 170,
+        'up_threshold': 110,
+        'form_rules': [],
+        'description': 'Kneel on the floor, hold the ab wheel, and roll forward, keeping your core tight and back straight.'
+    },
 }
 
 

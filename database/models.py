@@ -6,7 +6,8 @@ class SetLogRequest(BaseModel):
     exercise_key: str
     set_number: int
     reps_counted: int
-    weight_kg: float = 0.0
+    weight_kg: float = Field(..., ge=0)
+    weight_unit: str = Field("kg", pattern="^(kg|lbs)$")
     weight_mode: Optional[str] = "total"
     rpe: int = Field(..., ge=1, le=10)
     avg_form_score: Optional[float] = 0.0   # 0.0 for manual entries (no camera data)

@@ -27,7 +27,7 @@ let exerciseSelect, startBtn, endSetBtn, endSessionBtn;
 let repLabelEl, repCountEl, stageLabelEl, formScorePercentEl, formScoreBarEl;
 let feedbackContainer, anglesContainer, streamStatusEl;
 let logSetModal, modalExercise, modalReps, modalRepsLabel, modalScore;
-let weightInput, weightModeSelect, setDurationInput, rpeInput, rpeValue;
+let weightInput, weightUnitSelect, weightModeSelect, setDurationInput, rpeInput, rpeValue;
 let painCheckbox, painLocationGroup, painLocationInput, saveSetBtn, cancelSetBtn;
 let summaryModal, sumSetsEl, sumRepsEl, sumRepsLabel, sumCaloriesEl, sumScoreEl;
 let sessionNotes, saveSessionBtn;
@@ -69,6 +69,7 @@ function bindDomRefs() {
   modalRepsLabel   = document.getElementById('modalRepsLabel');
   modalScore       = document.getElementById('modalScore');
   weightInput      = document.getElementById('weightInput');
+  weightUnitSelect = document.getElementById('weightUnitSelect');
   weightModeSelect = document.getElementById('weightModeSelect');
   setDurationInput = document.getElementById('setDurationInput');
   rpeInput         = document.getElementById('rpeInput');
@@ -383,12 +384,19 @@ async function saveSet() {
   let duration = parseFloat(setDurationInput.value);
   if (isNaN(duration)) duration = parseFloat(saveSetBtn.getAttribute('data-duration')) || 0.0;
 
+  const enteredWeight = parseFloat(weightInput.value);
+  if (isNaN(enteredWeight) || enteredWeight < 0) {
+    alert("Please enter a valid weight (0 or higher).");
+    return;
+  }
+
   const payload = {
     session_id: currentSessionId,
     exercise_key: currentExerciseKey,
     set_number: currentSetNumber,
     reps_counted: repsCounted,
-    weight_kg: parseFloat(weightInput.value) || 0,
+    weight_kg: enteredWeight,
+    weight_unit: weightUnitSelect.value || 'kg',
     weight_mode: weightModeSelect.value || 'total',
     rpe: parseInt(rpeInput.value),
     avg_form_score: lastAvgFormScore,
@@ -485,6 +493,7 @@ function openManualEntryModal() {
   document.getElementById('manualSetsCount').value = 3;
   document.getElementById('manualRepsCount').value = 10;
   document.getElementById('manualWeightInput').value = 0;
+  document.getElementById('manualWeightUnit').value = 'kg';
   document.getElementById('manualWeightMode').value = 'total';
   document.getElementById('manualDuration').value = '';
   document.getElementById('manualRpeInput').value = 7;
@@ -514,7 +523,13 @@ async function saveManualEntry() {
 
   const setsCount   = parseInt(document.getElementById('manualSetsCount').value) || 1;
   const repsPerSet  = parseInt(document.getElementById('manualRepsCount').value) || 0;
-  const weight      = parseFloat(document.getElementById('manualWeightInput').value) || 0.0;
+  const weightVal   = document.getElementById('manualWeightInput').value;
+  const weight      = parseFloat(weightVal);
+  if (isNaN(weight) || weight < 0) {
+    alert("Please enter a valid weight (0 or higher).");
+    return;
+  }
+  const weightUnit  = document.getElementById('manualWeightUnit').value || 'kg';
   const weightMode  = document.getElementById('manualWeightMode').value;   // 'total' | 'per_side' — stored verbatim
   const durSec      = parseFloat(document.getElementById('manualDuration').value) || 0.0;
   const rpe         = parseInt(document.getElementById('manualRpeInput').value) || 7;
@@ -537,6 +552,7 @@ async function saveManualEntry() {
         set_number:    i,
         reps_counted:  repsPerSet,
         weight_kg:     weight,
+        weight_unit:   weightUnit,
         weight_mode:   weightMode,        // stored exactly as chosen — no conversion
         rpe:           rpe,
         // avg_form_score intentionally omitted → backend default 0.0 (no camera data)

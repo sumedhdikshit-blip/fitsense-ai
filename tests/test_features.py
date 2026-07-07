@@ -21,6 +21,7 @@ def test_manual_set_entry_validation():
         "set_number": 1,
         "reps_counted": 10,
         "weight_kg": 40.0,
+        "weight_unit": "lbs",
         "weight_mode": "per_side",
         "rpe": 8,
         "avg_form_score": 90.0,
@@ -31,6 +32,7 @@ def test_manual_set_entry_validation():
     req = SetLogRequest(**payload)
     assert req.reps_counted == 10
     assert req.weight_kg == 40.0
+    assert req.weight_unit == "lbs"
     assert req.weight_mode == "per_side"
     assert req.duration_seconds == 35.5
 
@@ -45,6 +47,15 @@ def test_manual_set_entry_validation():
     payload_no_dur.pop("duration_seconds")
     req_no_dur = SetLogRequest(**payload_no_dur)
     assert req_no_dur.duration_seconds == 0.0
+
+    # 4. Negative weight should fail validation
+    payload_neg_weight = payload.copy()
+    payload_neg_weight["weight_kg"] = -5.0
+    try:
+        SetLogRequest(**payload_neg_weight)
+        assert False, "Expected ValidationError for negative weight"
+    except ValidationError:
+        pass
 
     # 4. Invalid RPE should fail validation
     payload_bad_rpe = payload.copy()
@@ -61,7 +72,7 @@ def test_manual_set_db_storage():
     session_id = create_in_progress_session(1)
     exercise_id = get_or_create_exercise(session_id, "pushup", "Pushup")
 
-    # 1. Log set 1: per_side weight mode, custom duration
+    # 1. Log set 1: per_side weight mode, custom duration, unit lbs
     log_set_to_db(
         exercise_id=exercise_id,
         set_number=1,
@@ -72,10 +83,11 @@ def test_manual_set_db_storage():
         pain_flag=False,
         pain_location="",
         duration_seconds=42.0,
-        weight_mode="per_side"
+        weight_mode="per_side",
+        weight_unit="lbs"
     )
 
-    # 2. Log set 2: total weight mode, blank duration (default 0.0)
+    # 2. Log set 2: total weight mode, blank duration (default 0.0), unit kg
     log_set_to_db(
         exercise_id=exercise_id,
         set_number=2,
@@ -86,7 +98,8 @@ def test_manual_set_db_storage():
         pain_flag=True,
         pain_location="right shoulder",
         duration_seconds=0.0,
-        weight_mode="total"
+        weight_mode="total",
+        weight_unit="kg"
     )
 
     # Query the database directly to verify
@@ -102,6 +115,7 @@ def test_manual_set_db_storage():
     assert rows[0]["set_number"] == 1
     assert rows[0]["reps_counted"] == 8
     assert rows[0]["weight_kg"] == 25.0
+    assert rows[0]["weight_unit"] == "lbs"
     assert rows[0]["weight_mode"] == "per_side"  # Saved exactly as logged
     assert rows[0]["duration_seconds"] == 42.0
 
@@ -109,6 +123,7 @@ def test_manual_set_db_storage():
     assert rows[1]["set_number"] == 2
     assert rows[1]["reps_counted"] == 10
     assert rows[1]["weight_kg"] == 60.0
+    assert rows[1]["weight_unit"] == "kg"
     assert rows[1]["weight_mode"] == "total"  # Saved exactly as logged
     assert rows[1]["duration_seconds"] == 0.0
 

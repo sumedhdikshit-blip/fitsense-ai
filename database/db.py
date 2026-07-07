@@ -149,6 +149,7 @@ def init_db():
       set_number INTEGER NOT NULL,
       reps_counted INTEGER DEFAULT 0 CHECK (reps_counted >= 0),
       weight_kg REAL DEFAULT 0 CHECK (weight_kg >= 0),
+      weight_unit TEXT DEFAULT 'kg',
       weight_mode TEXT DEFAULT 'total',
       rpe INTEGER,
       avg_form_score REAL,
@@ -167,6 +168,11 @@ def init_db():
 
     try:
         cursor.execute("ALTER TABLE sets ADD COLUMN weight_mode TEXT DEFAULT 'total';")
+    except sqlite3.OperationalError:
+        pass # Already migrated
+
+    try:
+        cursor.execute("ALTER TABLE sets ADD COLUMN weight_unit TEXT DEFAULT 'kg';")
     except sqlite3.OperationalError:
         pass # Already migrated
 
@@ -578,16 +584,16 @@ def get_or_create_exercise(session_id, exercise_key, display_name):
     conn.close()
     return exercise_id
 
-def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location, duration_seconds=0.0, weight_mode='total'):
+def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location, duration_seconds=0.0, weight_mode='total', weight_unit='kg'):
     conn = get_connection()
     try:
         with conn:
             cursor = conn.cursor()
             
             cursor.execute("""
-                INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, weight_mode, rpe, avg_form_score, pain_flag, pain_location, duration_seconds)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (exercise_id, set_number, reps, weight, weight_mode, rpe, form_score, pain_flag, pain_location, duration_seconds))
+                INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, weight_unit, weight_mode, rpe, avg_form_score, pain_flag, pain_location, duration_seconds)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (exercise_id, set_number, reps, weight, weight_unit, weight_mode, rpe, form_score, pain_flag, pain_location, duration_seconds))
             
             # Update exercise summary stats
             cursor.execute("SELECT reps_counted, avg_form_score FROM sets WHERE exercise_id = ?", (exercise_id,))
@@ -706,37 +712,56 @@ def finalize_session(session_id, notes=""):
 def get_user_prs(user_id):
     conn = get_connection()
     cursor = conn.cursor()
-    # Max weight PRs
+    # Fetch all weight sets
     cursor.execute("""
-        SELECT e.exercise_name, MAX(s.weight_kg) as max_weight
+        SELECT e.exercise_name, s.weight_kg, s.weight_unit
         FROM sets s
         JOIN exercises e ON s.exercise_id = e.exercise_id
         JOIN sessions sess ON e.session_id = sess.session_id
         WHERE sess.user_id = ? AND s.weight_kg > 0
-        GROUP BY e.exercise_name
     """, (user_id,))
     weight_rows = cursor.fetchall()
     
-    # Max reps PRs
+    # Fetch all reps sets
     cursor.execute("""
-        SELECT e.exercise_name, MAX(s.reps_counted) as max_reps
+        SELECT e.exercise_name, s.reps_counted
         FROM sets s
         JOIN exercises e ON s.exercise_id = e.exercise_id
         JOIN sessions sess ON e.session_id = sess.session_id
         WHERE sess.user_id = ? AND s.reps_counted > 0
-        GROUP BY e.exercise_name
     """, (user_id,))
     reps_rows = cursor.fetchall()
     conn.close()
     
-    prs = {}
+    # Group weight sets by exercise name
+    by_name_weight = {}
     for row in weight_rows:
-        prs[row["exercise_name"]] = {"weight": f"{row['max_weight']} kg"}
+        name = row["exercise_name"]
+        if name not in by_name_weight:
+            by_name_weight[name] = []
+        by_name_weight[name].append(row)
+        
+    prs = {}
+    for name, sets in by_name_weight.items():
+        # Compare normalized weights: 1 lb = 0.453592 kg
+        best_set = max(sets, key=lambda s: s["weight_kg"] * 0.453592 if s["weight_unit"] == "lbs" else s["weight_kg"])
+        unit = best_set["weight_unit"] if best_set["weight_unit"] else "kg"
+        prs[name] = {"weight": f"{best_set['weight_kg']} {unit}"}
+        
+    # Group reps sets by exercise name
+    by_name_reps = {}
     for row in reps_rows:
-        ex_name = row["exercise_name"]
-        if ex_name not in prs:
-            prs[ex_name] = {}
-        prs[ex_name]["reps"] = f"{row['max_reps']} reps"
+        name = row["exercise_name"]
+        if name not in by_name_reps:
+            by_name_reps[name] = []
+        by_name_reps[name].append(row)
+        
+    for name, sets in by_name_reps.items():
+        max_reps = max(s["reps_counted"] for s in sets)
+        if name not in prs:
+            prs[name] = {}
+        prs[name]["reps"] = f"{max_reps} reps"
+        
     return prs
 
 
@@ -753,63 +778,39 @@ def get_recent_prs_count(user_id, seven_days_ago_str):
     conn = get_connection()
     cursor = conn.cursor()
     
-    # 1. Get the max weight for each exercise key
     cursor.execute("""
-        SELECT e.exercise_key, MAX(s.weight_kg) as max_weight
+        SELECT e.exercise_key, s.weight_kg, s.weight_unit, s.reps_counted, sess.date
         FROM sets s
         JOIN exercises e ON s.exercise_id = e.exercise_id
         JOIN sessions sess ON e.session_id = sess.session_id
-        WHERE sess.user_id = ? AND s.weight_kg > 0
-        GROUP BY e.exercise_key
+        WHERE sess.user_id = ?
     """, (user_id,))
-    weight_prs = cursor.fetchall()
-    
-    # 2. Get the max reps for each exercise key
-    cursor.execute("""
-        SELECT e.exercise_key, MAX(s.reps_counted) as max_reps
-        FROM sets s
-        JOIN exercises e ON s.exercise_id = e.exercise_id
-        JOIN sessions sess ON e.session_id = sess.session_id
-        WHERE sess.user_id = ? AND s.reps_counted > 0
-        GROUP BY e.exercise_key
-    """, (user_id,))
-    reps_prs = cursor.fetchall()
-    
-    new_prs = 0
-    
-    # 3. For each max weight, check if they achieved it in the last 7 days
-    for row in weight_prs:
-        ex_key = row["exercise_key"]
-        max_w = row["max_weight"]
-        cursor.execute("""
-            SELECT COUNT(*) as cnt
-            FROM sets s
-            JOIN exercises e ON s.exercise_id = e.exercise_id
-            JOIN sessions sess ON e.session_id = sess.session_id
-            WHERE sess.user_id = ? 
-              AND e.exercise_key = ? 
-              AND s.weight_kg = ? 
-              AND sess.date >= ?
-        """, (user_id, ex_key, max_w, seven_days_ago_str))
-        if cursor.fetchone()["cnt"] > 0:
-            new_prs += 1
-            
-    # 4. For each max reps, check if they achieved it in the last 7 days
-    for row in reps_prs:
-        ex_key = row["exercise_key"]
-        max_r = row["max_reps"]
-        cursor.execute("""
-            SELECT COUNT(*) as cnt
-            FROM sets s
-            JOIN exercises e ON s.exercise_id = e.exercise_id
-            JOIN sessions sess ON e.session_id = sess.session_id
-            WHERE sess.user_id = ? 
-              AND e.exercise_key = ? 
-              AND s.reps_counted = ? 
-              AND sess.date >= ?
-        """, (user_id, ex_key, max_r, seven_days_ago_str))
-        if cursor.fetchone()["cnt"] > 0:
-            new_prs += 1
-            
+    all_sets = cursor.fetchall()
     conn.close()
+    
+    by_ex = {}
+    for row in all_sets:
+        ex_key = row["exercise_key"]
+        if ex_key not in by_ex:
+            by_ex[ex_key] = []
+        by_ex[ex_key].append(row)
+        
+    new_prs = 0
+    for ex_key, sets in by_ex.items():
+        # Max weight check
+        valid_w_sets = [s for s in sets if s["weight_kg"] > 0]
+        if valid_w_sets:
+            # find max normalized weight (in kg)
+            max_norm = max(s["weight_kg"] * 0.453592 if s["weight_unit"] == "lbs" else s["weight_kg"] for s in valid_w_sets)
+            # check if the max normalized weight was achieved in the last 7 days
+            if any((s["weight_kg"] * 0.453592 if s["weight_unit"] == "lbs" else s["weight_kg"]) >= max_norm - 1e-4 and s["date"] >= seven_days_ago_str for s in valid_w_sets):
+                new_prs += 1
+                
+        # Max reps check
+        valid_r_sets = [s for s in sets if s["reps_counted"] > 0]
+        if valid_r_sets:
+            max_reps = max(s["reps_counted"] for s in valid_r_sets)
+            if any(s["reps_counted"] == max_reps and s["date"] >= seven_days_ago_str for s in valid_r_sets):
+                new_prs += 1
+                
     return new_prs
