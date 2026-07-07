@@ -18,3 +18,12 @@ During model training on the synthetic lifestyle dataset, features showed neglig
 
 ### 5. Reactive Optimization (Thread Pool, Indexes) vs. Upfront Design
 We chose to implement WebSocket thread pool offloading and database indexing reactively using diagnostic profiling (`cProfile`, execution time tracking) rather than upfront. This avoided premature optimization. By writing the core loop first, we could measure where the actual event-loop blocking occurred (MediaPipe and frame drawing) and apply specific concurrency mitigations where they yielded the highest return on investment.
+
+### 6. Synchronous Groq Calls with Timeouts
+For the AI Coach and Deep Insights features, we chose to execute synchronous, blocking HTTP completions with a strict 5.0-second timeout rather than implementing background task queues (e.g. Celery + Redis) or client-side streaming. This simple design has an acceptable latency tradeoff at local developer scales, keeping token consumption light and routing code highly readable without introducing heavy third-party messaging systems.
+
+### 7. Formula-Based Fitness Score vs. Machine Learning
+Instead of attempting to train a neural network to model a user's Daily Fitness Score, we designed a transparent, weighted mathematical formula combining lifestyle and activity factors. This provides clear explainability so users know exactly which lifestyle or workout habits are affecting their grade. Our chronic disease risk ML experiment had already demonstrated that training dataset quality is the primary bottleneck in fitness modeling, making a clean, rule-bound math model far more reliable.
+
+### 8. Reactive Structured Logging
+Structured logging (console streams combined with rotating file logs) was introduced reactively in response to real debugging needs, specifically when diagnosing the decommissioned Groq model version. Developing code reactively allowed us to see exactly where raw print statements fell short in capturing context, leading to a standard logger implementation that guarantees stack traces and exceptions are properly routed.
