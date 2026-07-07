@@ -644,3 +644,50 @@ def test_nutrition_history():
         except PermissionError:
             pass
 
+def test_weight_goal_management():
+    """Verify weight goal saving, retrieval, and profile logic."""
+    import tempfile
+    from database import db
+    from fastapi.testclient import TestClient
+    from main import app
+    
+    temp_db_fd, temp_db_path = tempfile.mkstemp()
+    os.close(temp_db_fd)
+    
+    try:
+        original_db_path = db.DB_PATH
+        db.DB_PATH = temp_db_path
+        db.init_db()
+        
+        client = TestClient(app)
+        from main import get_current_user_id
+        app.dependency_overrides[get_current_user_id] = lambda: 1
+        
+        # Save weight goal via endpoint
+        payload = {
+            "goal_type": "lose",
+            "target_weight_kg": 75.5,
+            "starting_weight_kg": 85.0,
+            "target_date": "2026-12-31"
+        }
+        resp = client.post("/profile/weight-goal", json=payload)
+        assert resp.status_code == 200
+        
+        # Verify stored in user profile
+        profile = db.get_profile(1)
+        assert profile["goal_type"] == "lose"
+        assert profile["target_weight_kg"] == 75.5
+        assert profile["starting_weight_kg"] == 85.0
+        assert profile["target_date"] == "2026-12-31"
+        
+        app.dependency_overrides.clear()
+        
+    finally:
+        db.DB_PATH = original_db_path
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass
+
+

@@ -2,6 +2,10 @@
 
 let selectedWeightDays = '7';
 let activeCardioTab = 'duration';
+let userGoalType = null;
+let userTargetWeight = null;
+let userStartingWeight = null;
+let userTargetDate = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
   injectNav('overview');
@@ -315,6 +319,78 @@ async function refreshDashboard() {
       }
     }
 
+    // Set global goal values
+    userGoalType = data.profile ? data.profile.goal_type : null;
+    userTargetWeight = data.profile && data.profile.target_weight_kg ? parseFloat(data.profile.target_weight_kg) : null;
+    userStartingWeight = data.profile && data.profile.starting_weight_kg ? parseFloat(data.profile.starting_weight_kg) : null;
+    userTargetDate = data.profile ? data.profile.target_date : null;
+
+    // Render Weight Goal section
+    const noGoalState = document.getElementById('noGoalState');
+    const activeGoalState = document.getElementById('activeGoalState');
+    
+    if (noGoalState && activeGoalState) {
+      if (!userGoalType) {
+        noGoalState.style.display = 'block';
+        activeGoalState.style.display = 'none';
+      } else {
+        noGoalState.style.display = 'none';
+        activeGoalState.style.display = 'flex';
+        
+        // Update texts
+        const badge = document.getElementById('goalTypeBadge');
+        if (userGoalType === 'lose') {
+          badge.textContent = 'Weight Loss Goal';
+          badge.style.background = 'rgba(243, 139, 168, 0.15)';
+          badge.style.color = '#f38ba8';
+          badge.style.borderColor = 'rgba(243, 139, 168, 0.3)';
+        } else if (userGoalType === 'gain') {
+          badge.textContent = 'Weight Gain Goal';
+          badge.style.background = 'rgba(166, 227, 161, 0.15)';
+          badge.style.color = '#a6e3a1';
+          badge.style.borderColor = 'rgba(166, 227, 161, 0.3)';
+        } else {
+          badge.textContent = 'Maintenance Goal';
+          badge.style.background = 'rgba(180, 190, 254, 0.15)';
+          badge.style.color = '#b4befe';
+          badge.style.borderColor = 'rgba(180, 190, 254, 0.3)';
+        }
+        
+        const currentW = data.current_weight || userStartingWeight || 0.0;
+        document.getElementById('goalTargetText').textContent = `Target: ${userTargetWeight.toFixed(1)} kg`;
+        document.getElementById('goalStartWeightText').textContent = `Start: ${userStartingWeight.toFixed(1)} kg`;
+        document.getElementById('goalTargetWeightText').textContent = `Target: ${userTargetWeight.toFixed(1)} kg`;
+        
+        // Remaining
+        const remaining = Math.abs(currentW - userTargetWeight);
+        const remainingEl = document.getElementById('goalRemainingText');
+        if (remaining <= 0.1 && userGoalType === 'maintain') {
+          remainingEl.textContent = 'On track';
+        } else {
+          remainingEl.textContent = `${remaining.toFixed(1)} kg to go`;
+        }
+        
+        // Progress percentage calculation
+        let progressPct = 0;
+        if (userGoalType === 'lose') {
+          if (userStartingWeight > userTargetWeight) {
+            progressPct = Math.round(((userStartingWeight - currentW) / (userStartingWeight - userTargetWeight)) * 100);
+          }
+        } else if (userGoalType === 'gain') {
+          if (userTargetWeight > userStartingWeight) {
+            progressPct = Math.round(((currentW - userStartingWeight) / (userTargetWeight - userStartingWeight)) * 100);
+          }
+        } else {
+          // Maintenance is 100% progress if within ±1.5kg
+          progressPct = remaining <= 1.5 ? 100 : Math.round((1.5 / remaining) * 100);
+        }
+        progressPct = Math.max(0, Math.min(100, progressPct));
+        
+        document.getElementById('goalProgressPct').textContent = `${progressPct}%`;
+        document.getElementById('goalProgressBar').style.width = `${progressPct}%`;
+      }
+    }
+
     // Fetch and render nutrition alerts
     try {
       const alertsRes = await fetch('/nutrition/alerts');
@@ -356,13 +432,16 @@ async function refreshDashboard() {
 async function fetchWeightHistoryAndDraw() {
   try {
     const res = await fetch(`/weight/history?days=${selectedWeightDays}`);
-    if (res.ok) drawWeightChart(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      drawWeightChart(data, userTargetWeight, userGoalType);
+    }
   } catch (e) {
     console.error('fetchWeightHistoryAndDraw error:', e);
   }
 }
 
-function drawWeightChart(data) {
+function drawWeightChart(data, targetWeight = null, goalType = null) {
   const canvas = document.getElementById('weightChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -370,12 +449,18 @@ function drawWeightChart(data) {
 
   const weightChangeDisplay = document.getElementById('weightChangeDisplay');
 
+  // Handle pace & schedule DOM elements
+  const goalPaceText = document.getElementById('goalPaceText');
+  const goalScheduleStatus = document.getElementById('goalScheduleStatus');
+
   if (!data || data.length === 0) {
     ctx.fillStyle = '#aaaaaa';
     ctx.font = '13px Inter';
     ctx.textAlign = 'center';
     ctx.fillText('No weight entries logged yet. Log your weight to see your progress chart.', canvas.width / 2, canvas.height / 2);
     weightChangeDisplay.textContent = '-- kg';
+    if (goalPaceText) goalPaceText.textContent = "Pace: Not enough data yet";
+    if (goalScheduleStatus) goalScheduleStatus.textContent = "";
     return;
   }
 
@@ -385,11 +470,71 @@ function drawWeightChart(data) {
   weightChangeDisplay.textContent = (delta >= 0 ? '+' : '') + delta.toFixed(1) + ' kg';
   weightChangeDisplay.style.color = delta < 0 ? '#29b6f6' : delta > 0 ? '#ffa726' : '#ffffff';
 
+  // Pace & schedule calculation
+  if (goalPaceText && goalScheduleStatus) {
+    if (data.length >= 2) {
+      const daysDiff = (new Date(data[data.length - 1].date) - new Date(data[0].date)) / (1000 * 60 * 60 * 24);
+      if (daysDiff >= 3) {
+        const weightDiff = lastW - firstW;
+        const pacePerWeek = (weightDiff / daysDiff) * 7;
+        goalPaceText.textContent = `Pace: ${(pacePerWeek >= 0 ? '+' : '') + pacePerWeek.toFixed(2)} kg/week`;
+
+        if (userTargetDate && targetWeight && goalType) {
+          const daysRemaining = (new Date(userTargetDate) - new Date()) / (1000 * 60 * 60 * 24);
+          if (daysRemaining > 0) {
+            const weightRemaining = targetWeight - lastW;
+            const requiredPace = (weightRemaining / daysRemaining) * 7;
+            let schedule = "On track";
+            let color = "#a6e3a1";
+
+            if (goalType === 'lose') {
+              if (pacePerWeek > requiredPace + 0.1) {
+                schedule = "Behind schedule";
+                color = "#fab387";
+              } else if (pacePerWeek < requiredPace - 0.1) {
+                schedule = "Ahead of schedule";
+                color = "#a6e3a1";
+              }
+            } else if (goalType === 'gain') {
+              if (pacePerWeek < requiredPace - 0.1) {
+                schedule = "Behind schedule";
+                color = "#fab387";
+              } else if (pacePerWeek > requiredPace + 0.1) {
+                schedule = "Ahead of schedule";
+                color = "#a6e3a1";
+              }
+            }
+            goalScheduleStatus.textContent = schedule;
+            goalScheduleStatus.style.color = color;
+          } else {
+            goalScheduleStatus.textContent = "Goal target date passed";
+            goalScheduleStatus.style.color = "#f38ba8";
+          }
+        } else {
+          goalScheduleStatus.textContent = "";
+        }
+      } else {
+        goalPaceText.textContent = "Pace: Not enough data yet";
+        goalScheduleStatus.textContent = "";
+      }
+    } else {
+      goalPaceText.textContent = "Pace: Not enough data yet";
+      goalScheduleStatus.textContent = "";
+    }
+  }
+
   const pL = 45, pR = 20, pT = 25, pB = 35;
   const gW = canvas.width - pL - pR;
   const gH = canvas.height - pT - pB;
 
   const weights = data.map(d => d.weight_kg);
+  if (targetWeight && goalType) {
+    weights.push(targetWeight);
+    if (goalType === 'maintain') {
+      weights.push(targetWeight - 1.5);
+      weights.push(targetWeight + 1.5);
+    }
+  }
   let minW = Math.min(...weights) - 2;
   let maxW = Math.max(...weights) + 2;
   if (maxW - minW < 4) { minW -= 2; maxW += 2; }
@@ -419,8 +564,67 @@ function drawWeightChart(data) {
     weight: d.weight_kg
   }));
 
+  // Target overlay / Shading / Maintenance Band
+  if (targetWeight && goalType) {
+    const yTarget = canvas.height - pB - ((targetWeight - minW) / (maxW - minW)) * gH;
+    
+    if (goalType === 'maintain') {
+      const yLower = canvas.height - pB - (((targetWeight - 1.5) - minW) / (maxW - minW)) * gH;
+      const yUpper = canvas.height - pB - (((targetWeight + 1.5) - minW) / (maxW - minW)) * gH;
+
+      // Draw maintenance zone shading band
+      ctx.fillStyle = 'rgba(166, 227, 161, 0.05)';
+      ctx.fillRect(pL, yUpper, gW, yLower - yUpper);
+
+      // Draw dashed limits
+      ctx.strokeStyle = 'rgba(166, 227, 161, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(pL, yUpper); ctx.lineTo(canvas.width - pR, yUpper); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(pL, yLower); ctx.lineTo(canvas.width - pR, yLower); ctx.stroke();
+      ctx.setLineDash([]);
+      
+      // Draw target weight line inside zone
+      ctx.strokeStyle = 'rgba(166, 227, 161, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.moveTo(pL, yTarget); ctx.lineTo(canvas.width - pR, yTarget); ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#a6e3a1';
+      ctx.font = '9px Inter';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Target: ${targetWeight.toFixed(1)}kg`, pL + 5, yTarget - 4);
+    } else {
+      // Lose or gain: shade space between line and target
+      if (points.length > 1) {
+        ctx.fillStyle = goalType === 'lose' ? 'rgba(243, 139, 168, 0.04)' : 'rgba(166, 227, 161, 0.04)';
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        points.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.lineTo(points[points.length - 1].x, yTarget);
+        ctx.lineTo(points[0].x, yTarget);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Draw target weight line
+      ctx.strokeStyle = 'rgba(249, 226, 175, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.moveTo(pL, yTarget); ctx.lineTo(canvas.width - pR, yTarget); ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#f9e2af';
+      ctx.font = '9px Inter';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Target: ${targetWeight.toFixed(1)}kg`, pL + 5, yTarget - 4);
+    }
+  }
+
+  // Draw background area below trend line
   if (points.length > 1) {
-    ctx.fillStyle = 'rgba(41, 182, 246, 0.07)';
+    ctx.fillStyle = 'rgba(41, 182, 246, 0.05)';
     ctx.beginPath();
     ctx.moveTo(points[0].x, canvas.height - pB);
     points.forEach(p => ctx.lineTo(p.x, p.y));
@@ -1010,4 +1214,59 @@ function calculateTargetCalories(profile) {
     target = tdee + 300;
   }
   return Math.max(1200, Math.round(target));
+}
+
+function openWeightGoalModal() {
+  const modal = document.getElementById('weightGoalModal');
+  if (modal) {
+    document.getElementById('goalTypeSelect').value = userGoalType || 'lose';
+    document.getElementById('startingWeightInput').value = userStartingWeight || '';
+    document.getElementById('targetWeightInput').value = userTargetWeight || '';
+    document.getElementById('goalTargetDateInput').value = userTargetDate || '';
+    modal.style.display = 'flex';
+  }
+}
+
+function closeWeightGoalModal() {
+  const modal = document.getElementById('weightGoalModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+async function saveWeightGoalForm() {
+  const goalType = document.getElementById('goalTypeSelect').value;
+  const startingWeight = parseFloat(document.getElementById('startingWeightInput').value) || 0.0;
+  const targetWeight = parseFloat(document.getElementById('targetWeightInput').value) || 0.0;
+  const targetDate = document.getElementById('goalTargetDateInput').value || null;
+
+  if (startingWeight <= 0 || targetWeight <= 0) {
+    alert("Please enter valid starting and target weights.");
+    return;
+  }
+
+  try {
+    const res = await fetch('/profile/weight-goal', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        goal_type: goalType,
+        target_weight_kg: targetWeight,
+        starting_weight_kg: startingWeight,
+        target_date: targetDate
+      })
+    });
+    if (res.ok) {
+      closeWeightGoalModal();
+      await refreshDashboard();
+    } else {
+      const err = await res.json();
+      alert("Error saving goal: " + (err.detail || "Unknown error"));
+    }
+  } catch (e) {
+    console.error("Error saving goal:", e);
+    alert("Failed to save goal.");
+  }
 }

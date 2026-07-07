@@ -476,6 +476,15 @@ def get_coach_tip(request: Request, user_id: int = Depends(get_current_user_id))
         return {"tip": "Log a workout first to get personalized coaching tips"}
 
     try:
+        profile = db.get_profile(user_id)
+        goal_str = "No weight goal set yet."
+        if profile and profile.get("goal_type"):
+            goal_str = f"Weight Goal: {profile['goal_type']} to {profile['target_weight_kg']} kg"
+            if profile.get("starting_weight_kg"):
+                goal_str += f" (starting weight: {profile['starting_weight_kg']} kg)"
+            if profile.get("target_date"):
+                goal_str += f", target date: {profile['target_date']}"
+
         # Fetch user Fitness Score
         fit_score = calculate_fitness_score_internal(user_id)
         fit_score_str = f"Fitness Score: {fit_score['score']} ({fit_score['grade']})\n"
@@ -518,6 +527,7 @@ def get_coach_tip(request: Request, user_id: int = Depends(get_current_user_id))
 
         summarized_data = (
             f"User Fitness Score Details:\n{fit_score_str}\n\n"
+            f"Weight Goal Context:\n{goal_str}\n\n"
             f"Recent sessions:\n{sessions_str}\n\n"
             f"Weight trend: {weight_trend_str}\n\n"
             f"Personal Records (PRs): {prs_str}"
@@ -527,7 +537,8 @@ def get_coach_tip(request: Request, user_id: int = Depends(get_current_user_id))
             f"Based on this user's recent workout data and health metrics:\n{summarized_data}\n\n"
             f"give one specific, encouraging, actionable coaching tip in 2-3 sentences. "
             f"Reference their computed Fitness Score and letter grade directly (e.g. 'Your fitness score is X (Y), driven mainly by...'), "
-            f"and refer to something specific from their data rather than generic advice."
+            f"and reference their weight goal directly if it is set. "
+            f"Refer to something specific from their data rather than generic advice."
         )
 
         # TRADEOFF: This makes a synchronous, blocking HTTP call to the Groq API.
@@ -575,6 +586,15 @@ def get_insights(request: Request, user_id: int = Depends(get_current_user_id)):
         }
 
     try:
+        profile = db.get_profile(user_id)
+        goal_str = "No weight goal set yet."
+        if profile and profile.get("goal_type"):
+            goal_str = f"Weight Goal: {profile['goal_type']} to {profile['target_weight_kg']} kg"
+            if profile.get("starting_weight_kg"):
+                goal_str += f" (starting weight: {profile['starting_weight_kg']} kg)"
+            if profile.get("target_date"):
+                goal_str += f", target date: {profile['target_date']}"
+
         # Fetch user Fitness Score
         fit_score = calculate_fitness_score_internal(user_id)
         fit_score_str = f"Fitness Score: {fit_score['score']} ({fit_score['grade']})\n"
@@ -617,6 +637,7 @@ def get_insights(request: Request, user_id: int = Depends(get_current_user_id)):
 
         summarized_data = (
             f"User Fitness Score Details:\n{fit_score_str}\n\n"
+            f"Weight Goal Context:\n{goal_str}\n\n"
             f"Recent sessions:\n{sessions_str}\n\n"
             f"Weight trend: {weight_trend_str}\n\n"
             f"Personal Records (PRs): {prs_str}"
@@ -836,6 +857,17 @@ def update_profile(data: models.ProfileRequest, user_id: int = Depends(get_curre
         alcohol_consumption=data.alcohol_consumption
     )
     return {"status": "success", "message": "Profile updated successfully"}
+
+@app.post("/profile/weight-goal")
+def update_weight_goal(data: models.WeightGoalRequest, user_id: int = Depends(get_current_user_id)):
+    db.save_weight_goal(
+        user_id=user_id,
+        goal_type=data.goal_type,
+        target_weight_kg=data.target_weight_kg,
+        starting_weight_kg=data.starting_weight_kg,
+        target_date=data.target_date
+    )
+    return {"status": "success", "message": "Weight goal updated successfully"}
 
 @app.post("/profile/change-password")
 def change_password(data: models.PasswordChangeRequest, user_id: int = Depends(get_current_user_id)):

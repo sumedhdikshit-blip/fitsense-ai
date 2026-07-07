@@ -48,11 +48,32 @@ def init_db():
       smoker TEXT,
       exercise_freq TEXT,
       alcohol_consumption TEXT,
+      goal_type TEXT,
+      target_weight_kg REAL,
+      starting_weight_kg REAL,
+      target_date TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
     
     # Run migrations for user table columns if not present (for existing databases)
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN goal_type TEXT;")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN target_weight_kg REAL;")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN starting_weight_kg REAL;")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN target_date TEXT;")
+    except sqlite3.OperationalError:
+        pass
+
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN sex TEXT DEFAULT 'unspecified';")
     except sqlite3.OperationalError:
@@ -452,6 +473,17 @@ def save_profile(user_id, name, age, weight, height, sex, fitness_goal, gender=N
         ON CONFLICT(user_id, date) DO UPDATE SET weight_kg = excluded.weight_kg
     """, (user_id, today_str, weight))
     
+    conn.commit()
+    conn.close()
+
+def save_weight_goal(user_id, goal_type, target_weight_kg, starting_weight_kg, target_date):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE users 
+        SET goal_type = ?, target_weight_kg = ?, starting_weight_kg = ?, target_date = ? 
+        WHERE user_id = ?
+    """, (goal_type, target_weight_kg, starting_weight_kg, target_date, user_id))
     conn.commit()
     conn.close()
 

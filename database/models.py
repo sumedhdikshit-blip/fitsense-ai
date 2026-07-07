@@ -85,3 +85,10 @@ class PasswordChangeRequest(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=8)
     confirm_new_password: str
+
+class WeightGoalRequest(BaseModel):
+    goal_type: str = Field(..., pattern="^(lose|gain|maintain)$")
+    target_weight_kg: float = Field(..., ge=10, le=500)
+    starting_weight_kg: float = Field(..., ge=10, le=500)
+    target_date: Optional[str] = None
+
