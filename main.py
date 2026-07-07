@@ -519,6 +519,134 @@ def get_coach_tip(user_id: int = Depends(get_current_user_id)):
         print(f"Error calling Groq API for coach tip: {e}")
         return {"tip": "Coach tip unavailable right now"}
 
+@app.get("/ai/insights")
+def get_insights(user_id: int = Depends(get_current_user_id)):
+    import json
+    from ai.coach_client import get_groq_client
+    try:
+        sessions = db.get_recent_sessions(user_id, limit=10)
+    except Exception as e:
+        print(f"Error fetching recent sessions for insights: {e}")
+        return {"error": "Insights unavailable right now due to database fetch failure"}
+
+    if not sessions:
+        return {
+            "message": "Log a workout first to generate fitness insights.",
+            "progress_summary": "No workouts logged yet.",
+            "tips_to_improve": "No workouts logged yet.",
+            "what_to_avoid": "No workouts logged yet.",
+            "next_steps": "Log your first workout session.",
+            "motivation_note": "You are at the start of your journey. Let's log that first session!"
+        }
+
+    try:
+        # Fetch user Fitness Score
+        fit_score = calculate_fitness_score_internal(user_id)
+        fit_score_str = f"Fitness Score: {fit_score['score']} ({fit_score['grade']})\n"
+        fit_score_str += f"- Lifestyle sub-score: {fit_score['breakdown']['lifestyle']['score']}/10 (components: {fit_score['breakdown']['lifestyle']['components']})\n"
+        if fit_score['breakdown']['activity']['score'] is not None:
+            fit_score_str += f"- Activity sub-score: {fit_score['breakdown']['activity']['score']}/10 (components: {fit_score['breakdown']['activity']['components']})\n"
+        else:
+            fit_score_str += "- Activity sub-score: No activity logged in the last 7 days.\n"
+        if fit_score['missing_inputs']:
+            fit_score_str += f"- Missing inputs in profile: {', '.join(fit_score['missing_inputs'])}\n"
+
+        session_summaries = []
+        for s in sessions:
+            ex_done = s.get("exercises_done") or "None"
+            session_summaries.append(
+                f"Date: {s['date']}, Exercises: {ex_done}, Sets: {s['total_sets']}, Reps: {s['total_reps']}, "
+                f"Avg Form Score: {s['avg_form_score']:.1f}%, Calories Burned: {s['total_calories_burned']:.1f} kcal"
+            )
+        sessions_str = "\n".join(session_summaries)
+
+        weight_history = db.get_weight_history(user_id, days=30)
+        weight_trend_str = "No weight entries logged recently."
+        if weight_history:
+            first_w = weight_history[0]["weight_kg"]
+            last_w = weight_history[-1]["weight_kg"]
+            diff = last_w - first_w
+            trend = "losing weight" if diff < 0 else "gaining weight" if diff > 0 else "maintaining weight"
+            weight_trend_str = f"Weight History (last 30 days): starting {first_w:.1f} kg, current {last_w:.1f} kg (trend: {trend} of {abs(diff):.1f} kg)"
+
+        prs = db.get_user_prs(user_id)
+        prs_str_list = []
+        for ex, pr_info in prs.items():
+            details = []
+            if "weight" in pr_info:
+                details.append(pr_info["weight"])
+            if "reps" in pr_info:
+                details.append(pr_info["reps"])
+            prs_str_list.append(f"{ex} ({' / '.join(details)})")
+        prs_str = ", ".join(prs_str_list) if prs_str_list else "No personal records yet."
+
+        summarized_data = (
+            f"User Fitness Score Details:\n{fit_score_str}\n\n"
+            f"Recent sessions:\n{sessions_str}\n\n"
+            f"Weight trend: {weight_trend_str}\n\n"
+            f"Personal Records (PRs): {prs_str}"
+        )
+
+        prompt = (
+            f"Based on this user's recent workout data and health metrics:\n{summarized_data}\n\n"
+            f"Generate custom fitness insights. You MUST return ONLY a valid raw JSON object, without any markdown formatting wrappers or backticks. "
+            f"The JSON object must contain exactly the following string keys, each mapped to a value of 2-3 specific, encouraging, actionable sentences:\n"
+            f"- 'progress_summary'\n"
+            f"- 'tips_to_improve'\n"
+            f"- 'what_to_avoid'\n"
+            f"- 'next_steps'\n"
+            f"- 'motivation_note'\n\n"
+            f"Each section must refer to specific metrics from the user's data (e.g. exercises done, form scores, trends, PRs, or fitness score). "
+            f"If data is missing for a particular section, state honestly that no data is available rather than fabricating metrics."
+        )
+
+        client = get_groq_client()
+
+        def run_call(custom_prompt: str) -> str:
+            # Synchronous call with 5.0 seconds timeout
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": custom_prompt,
+                    }
+                ],
+                model="llama3-8b-8192",
+                response_format={"type": "json_object"},
+                timeout=5.0,
+            )
+            return chat_completion.choices[0].message.content.strip()
+
+        try:
+            raw_response = run_call(prompt)
+            parsed_json = json.loads(raw_response)
+        except Exception as e:
+            print(f"First attempt to generate insights failed or was invalid JSON: {e}. Retrying once...")
+            stricter_prompt = (
+                prompt + "\n\nCRITICAL: You failed to return valid JSON last time. "
+                "You must return ONLY a JSON object containing exactly the five keys. No other text, conversational preamble, or markdown formatting."
+            )
+            try:
+                raw_response = run_call(stricter_prompt)
+                parsed_json = json.loads(raw_response)
+            except Exception as retry_err:
+                print(f"Retry attempt to generate insights failed: {retry_err}")
+                return {"error": "Failed to generate structured insights due to LLM parsing error."}
+
+        required_keys = ["progress_summary", "tips_to_improve", "what_to_avoid", "next_steps", "motivation_note"]
+        final_result = {}
+        for key in required_keys:
+            final_result[key] = parsed_json.get(key, "Data not available for this insight section.")
+
+        return final_result
+
+    except ValueError as val_err:
+        print(f"Configuration error for Groq client: {val_err}")
+        return {"error": "Insights unavailable right now due to missing API configuration"}
+    except Exception as e:
+        print(f"Error calling Groq API for insights: {e}")
+        return {"error": "Insights unavailable right now due to service timeout or connection failure"}
+
 @app.get("/exercises")
 def get_exercises():
     return [
