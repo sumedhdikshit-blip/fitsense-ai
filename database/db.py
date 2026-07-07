@@ -579,6 +579,7 @@ def get_nutrition_history(user_id, days=7):
     else:
         cursor.execute("""
             SELECT date, calories_consumed, protein_g, carbs_g, fat_g, fiber_g, saturated_fat_g 
+            FROM daily_nutrition 
             WHERE user_id = ? AND date >= date('now', '-' || ? || ' days')
             ORDER BY date ASC
         """, (user_id, int(days)))
