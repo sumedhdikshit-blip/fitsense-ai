@@ -717,3 +717,69 @@ def get_user_prs(user_id):
         if ex_name not in prs:
             prs[ex_name] = f"{row['max_reps']} reps"
     return prs
+
+
+def get_recent_prs_count(user_id, seven_days_ago_str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # 1. Get the max weight for each exercise key
+    cursor.execute("""
+        SELECT e.exercise_key, MAX(s.weight_kg) as max_weight
+        FROM sets s
+        JOIN exercises e ON s.exercise_id = e.exercise_id
+        JOIN sessions sess ON e.session_id = sess.session_id
+        WHERE sess.user_id = ? AND s.weight_kg > 0
+        GROUP BY e.exercise_key
+    """, (user_id,))
+    weight_prs = cursor.fetchall()
+    
+    # 2. Get the max reps for each exercise key
+    cursor.execute("""
+        SELECT e.exercise_key, MAX(s.reps_counted) as max_reps
+        FROM sets s
+        JOIN exercises e ON s.exercise_id = e.exercise_id
+        JOIN sessions sess ON e.session_id = sess.session_id
+        WHERE sess.user_id = ? AND s.reps_counted > 0
+        GROUP BY e.exercise_key
+    """, (user_id,))
+    reps_prs = cursor.fetchall()
+    
+    new_prs = 0
+    
+    # 3. For each max weight, check if they achieved it in the last 7 days
+    for row in weight_prs:
+        ex_key = row["exercise_key"]
+        max_w = row["max_weight"]
+        cursor.execute("""
+            SELECT COUNT(*) as cnt
+            FROM sets s
+            JOIN exercises e ON s.exercise_id = e.exercise_id
+            JOIN sessions sess ON e.session_id = sess.session_id
+            WHERE sess.user_id = ? 
+              AND e.exercise_key = ? 
+              AND s.weight_kg = ? 
+              AND sess.date >= ?
+        """, (user_id, ex_key, max_w, seven_days_ago_str))
+        if cursor.fetchone()["cnt"] > 0:
+            new_prs += 1
+            
+    # 4. For each max reps, check if they achieved it in the last 7 days
+    for row in reps_prs:
+        ex_key = row["exercise_key"]
+        max_r = row["max_reps"]
+        cursor.execute("""
+            SELECT COUNT(*) as cnt
+            FROM sets s
+            JOIN exercises e ON s.exercise_id = e.exercise_id
+            JOIN sessions sess ON e.session_id = sess.session_id
+            WHERE sess.user_id = ? 
+              AND e.exercise_key = ? 
+              AND s.reps_counted = ? 
+              AND sess.date >= ?
+        """, (user_id, ex_key, max_r, seven_days_ago_str))
+        if cursor.fetchone()["cnt"] > 0:
+            new_prs += 1
+            
+    conn.close()
+    return new_prs

@@ -102,6 +102,29 @@
       </div>
     </section>
 
+    <!-- Fitness Score Section -->
+    <section class="fitness-score-section" style="margin-top: 20px;">
+      <div class="panel fitness-score-panel">
+        <div class="panel-header">
+          <div class="score-header-title">
+            <svg class="score-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 20px; height: 20px; color: var(--color-blue); margin-right: 8px; vertical-align: middle; display: inline-block;">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h2 style="display: inline-block; vertical-align: middle; margin: 0;">Daily Fitness Score</h2>
+          </div>
+        </div>
+        <div class="score-panel-body" style="display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
+          <div class="score-display-group" style="display: flex; align-items: center; gap: 15px;">
+            <div class="score-large-val" id="fitnessScoreVal" style="font-size: 2.8rem; font-weight: 800; color: var(--color-blue); line-height: 1;">--</div>
+            <div class="score-grade-badge" id="fitnessGradeVal" style="font-size: 1.4rem; font-weight: 800; background-color: rgba(41, 182, 246, 0.15); color: var(--color-blue); padding: 4px 12px; border-radius: 8px; border: 1px solid rgba(41, 182, 246, 0.3);">--</div>
+          </div>
+          <div class="score-interpretation" id="fitnessInterpretation" style="flex: 1; min-width: 250px; font-size: 0.95rem; color: var(--text-muted);">
+            Calculating your fitness score...
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- AI Coach Section -->
     <section class="ai-coach-section" style="margin-top: 20px;">
       <div class="panel ai-coach-panel">

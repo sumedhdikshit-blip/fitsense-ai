@@ -163,6 +163,262 @@ def test_ai_connection(user_id: int = Depends(get_current_user_id)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Groq API connection failed: {str(e)}")
 
+def calculate_fitness_score_internal(user_id: int):
+    """
+    Calculates the user's current Fitness Score on a scale of 1.00 to 10.00.
+    
+    Composition:
+    - 82% weight: Lifestyle/health sub-score (weighted average of normalized 0-10 sub-scores)
+      - Age component (25% weight): Normalized based on age ranges.
+      - BMI component (25% weight): Derived from weight and height, normalized based on clinical healthy range.
+      - Stress component (25% weight): Normalized from stress_level (1-10), clamped gently to avoid harsh penalties.
+      - Sleep component (25% weight): Normalized from sleep_hours (0-24), clamped gently to avoid harsh penalties.
+    - 18% weight: Actual app activity sub-score (weighted average of normalized 0-10 activity sub-scores)
+      - Consistency (35% weight): Count of sessions in the last 7 days.
+      - Average Form Score (35% weight): Average form score of camera-tracked sets in the last 7 days.
+      - Calorie Balance (15% weight): Daily net calories deviation from target based on user fitness goal.
+      - PR Progress (15% weight): Count of personal records set in the last 7 days.
+    """
+    import datetime
+    
+    profile = db.get_profile(user_id)
+    if not profile:
+        profile = {
+            "age": 28,
+            "weight_kg": 75.0,
+            "height_cm": 180.0,
+            "sex": "unspecified",
+            "stress_level": None,
+            "sleep_hours": None,
+            "fitness_goal": ""
+        }
+        
+    missing_inputs = []
+    
+    # --- Lifestyle Score (82% weight) ---
+    age = profile.get("age")
+    if age is None:
+        age = 28
+    
+    if 18 <= age <= 40:
+        age_score = 10.0
+    elif age < 18:
+        age_score = max(2.0, (age / 18.0) * 10.0)
+    else:
+        age_score = max(2.0, 10.0 - (age - 40) * 0.15)
+        
+    weight = profile.get("weight_kg")
+    height = profile.get("height_cm")
+    if weight is None or weight <= 0:
+        weight = 75.0
+    if height is None or height <= 0:
+        height = 180.0
+        
+    bmi = weight / ((height / 100.0) ** 2)
+    if 18.5 <= bmi <= 24.9:
+        bmi_score = 10.0
+    elif bmi < 18.5:
+        bmi_score = max(2.0, 10.0 - (18.5 - bmi) * 1.5)
+    else:
+        bmi_score = max(2.0, 10.0 - (bmi - 24.9) * 0.8)
+        
+    stress = profile.get("stress_level")
+    stress_score = None
+    if stress is None:
+        missing_inputs.append("stress_level")
+    else:
+        stress_score = max(4.0, 11.0 - stress)
+        
+    sleep = profile.get("sleep_hours")
+    sleep_score = None
+    if sleep is None:
+        missing_inputs.append("sleep_hours")
+    else:
+        if 7.0 <= sleep <= 9.0:
+            sleep_score = 10.0
+        elif sleep < 7.0:
+            sleep_score = max(4.0, 10.0 - (7.0 - sleep) * 1.5)
+        else:
+            sleep_score = max(5.0, 10.0 - (sleep - 9.0) * 1.0)
+            
+    lifestyle_components = {
+        "age": round(age_score, 2),
+        "bmi": round(bmi_score, 2)
+    }
+    avail_lifestyle = [age_score, bmi_score]
+    if stress_score is not None:
+        lifestyle_components["stress_level"] = round(stress_score, 2)
+        avail_lifestyle.append(stress_score)
+    if sleep_score is not None:
+        lifestyle_components["sleep_hours"] = round(sleep_score, 2)
+        avail_lifestyle.append(sleep_score)
+        
+    lifestyle_avg = sum(avail_lifestyle) / len(avail_lifestyle)
+    
+    # --- Activity Score (18% weight) ---
+    today = datetime.date.today()
+    seven_days_ago_date = today - datetime.timedelta(days=7)
+    seven_days_ago_str = seven_days_ago_date.strftime("%Y-%m-%d")
+    
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT COUNT(*) as cnt FROM sessions 
+        WHERE user_id = ? AND date >= ?
+    """, (user_id, seven_days_ago_str))
+    session_count = cursor.fetchone()["cnt"] or 0
+    
+    if session_count == 0:
+        consistency_score = 0.0
+    elif session_count == 1:
+        consistency_score = 4.0
+    elif session_count == 2:
+        consistency_score = 7.0
+    elif session_count == 3:
+        consistency_score = 9.0
+    else:
+        consistency_score = 10.0
+        
+    cursor.execute("""
+        SELECT s.avg_form_score
+        FROM sets s
+        JOIN exercises e ON s.exercise_id = e.exercise_id
+        JOIN sessions sess ON e.session_id = sess.session_id
+        WHERE sess.user_id = ? AND sess.date >= ? AND s.avg_form_score > 0
+    """, (user_id, seven_days_ago_str))
+    form_scores = [r["avg_form_score"] for r in cursor.fetchall()]
+    
+    avg_form_score = None
+    if form_scores:
+        avg_form_score = (sum(form_scores) / len(form_scores)) / 10.0
+        
+    goal = (profile.get("fitness_goal") or "").lower()
+    if any(k in goal for k in ["loss", "cut", "deficit", "lean"]):
+        target_balance = -400.0
+    elif any(k in goal for k in ["gain", "bulk", "build", "mass"]):
+        target_balance = 300.0
+    else:
+        target_balance = 0.0
+        
+    daily_balances = []
+    for i in range(7):
+        day_str = (today - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
+        
+        nutrition = db.get_nutrition_data(user_id, day_str)
+        
+        cursor.execute("SELECT SUM(total_calories_burned) as cal FROM sessions WHERE user_id = ? AND date = ?", (user_id, day_str))
+        webcam_row = cursor.fetchone()
+        webcam_cals = webcam_row["cal"] if (webcam_row and webcam_row["cal"]) else 0.0
+        
+        cursor.execute("SELECT SUM(calories_burned) as cal FROM cardio_logs WHERE user_id = ? AND date = ?", (user_id, day_str))
+        cardio_row = cursor.fetchone()
+        cardio_cals = cardio_row["cal"] if (cardio_row and cardio_row["cal"]) else 0.0
+        
+        exercise_burn = webcam_cals + cardio_cals
+        
+        if nutrition or exercise_burn > 0:
+            consumed = nutrition["calories_consumed"] if nutrition else 0.0
+            tef = consumed * 0.10
+            bmr = calculate_bmr(weight, height, age, profile.get("sex", "unspecified"))
+            net_cals = consumed - (exercise_burn + bmr + tef)
+            
+            dev = abs(net_cals - target_balance)
+            day_score = max(0.0, 10.0 - (dev / 100.0) * 1.0)
+            daily_balances.append(day_score)
+            
+    calorie_balance_score = None
+    if daily_balances:
+        calorie_balance_score = sum(daily_balances) / len(daily_balances)
+        
+    recent_prs = db.get_recent_prs_count(user_id, seven_days_ago_str)
+    pr_progress_score = 10.0 if recent_prs > 0 else 0.0
+    
+    conn.close()
+    
+    activity_components = {
+        "consistency": round(consistency_score, 2),
+        "pr_progress": round(pr_progress_score, 2)
+    }
+    
+    base_weights = {
+        "consistency": 0.35,
+        "avg_form": 0.35,
+        "calorie_balance": 0.15,
+        "pr_progress": 0.15
+    }
+    
+    avail_activity = {
+        "consistency": consistency_score,
+        "pr_progress": pr_progress_score
+    }
+    if avg_form_score is not None:
+        avail_activity["avg_form"] = avg_form_score
+        activity_components["avg_form"] = round(avg_form_score, 2)
+    if calorie_balance_score is not None:
+        avail_activity["calorie_balance"] = calorie_balance_score
+        activity_components["calorie_balance"] = round(calorie_balance_score, 2)
+        
+    sum_weights = sum(base_weights[k] for k in avail_activity.keys())
+    
+    if sum_weights > 0:
+        activity_score = sum(val * (base_weights[k] / sum_weights) for k, val in avail_activity.items())
+    else:
+        activity_score = None
+        
+    # --- Final Score combination ---
+    if activity_score is not None:
+        raw_final_score = 0.82 * lifestyle_avg + 0.18 * activity_score
+        lifestyle_contribution = 0.82 * lifestyle_avg
+        activity_contribution = 0.18 * activity_score
+    else:
+        raw_final_score = lifestyle_avg
+        lifestyle_contribution = lifestyle_avg
+        activity_contribution = 0.0
+        
+    final_score = max(1.00, min(10.00, raw_final_score))
+    
+    def get_letter_grade(s):
+        if s >= 9.5: return "A+"
+        elif s >= 9.0: return "A"
+        elif s >= 8.5: return "A-"
+        elif s >= 8.0: return "B+"
+        elif s >= 7.5: return "B"
+        elif s >= 7.0: return "B-"
+        elif s >= 6.5: return "C+"
+        elif s >= 6.0: return "C"
+        elif s >= 5.5: return "C-"
+        elif s >= 5.0: return "D+"
+        elif s >= 4.5: return "D"
+        elif s >= 4.0: return "D-"
+        else: return "F"
+        
+    grade = get_letter_grade(final_score)
+    
+    return {
+        "score": round(final_score, 2),
+        "grade": grade,
+        "breakdown": {
+            "lifestyle": {
+                "score": round(lifestyle_avg, 2),
+                "contribution": round(lifestyle_contribution, 2),
+                "components": lifestyle_components
+            },
+            "activity": {
+                "score": round(activity_score, 2) if activity_score is not None else None,
+                "contribution": round(activity_contribution, 2),
+                "components": activity_components
+            }
+        },
+        "missing_inputs": missing_inputs
+    }
+
+@app.get("/fitness-score")
+def get_fitness_score(user_id: int = Depends(get_current_user_id)):
+    try:
+        return calculate_fitness_score_internal(user_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to calculate fitness score: {str(e)}")
+
 @app.get("/ai/coach-tip")
 def get_coach_tip(user_id: int = Depends(get_current_user_id)):
     from ai.coach_client import get_groq_client
@@ -176,6 +432,17 @@ def get_coach_tip(user_id: int = Depends(get_current_user_id)):
         return {"tip": "Log a workout first to get personalized coaching tips"}
 
     try:
+        # Fetch user Fitness Score
+        fit_score = calculate_fitness_score_internal(user_id)
+        fit_score_str = f"Fitness Score: {fit_score['score']} ({fit_score['grade']})\n"
+        fit_score_str += f"- Lifestyle sub-score: {fit_score['breakdown']['lifestyle']['score']}/10 (components: {fit_score['breakdown']['lifestyle']['components']})\n"
+        if fit_score['breakdown']['activity']['score'] is not None:
+            fit_score_str += f"- Activity sub-score: {fit_score['breakdown']['activity']['score']}/10 (components: {fit_score['breakdown']['activity']['components']})\n"
+        else:
+            fit_score_str += "- Activity sub-score: No activity logged in the last 7 days.\n"
+        if fit_score['missing_inputs']:
+            fit_score_str += f"- Missing inputs in profile: {', '.join(fit_score['missing_inputs'])}\n"
+
         session_summaries = []
         for s in sessions:
             ex_done = s.get("exercises_done") or "None"
@@ -198,15 +465,17 @@ def get_coach_tip(user_id: int = Depends(get_current_user_id)):
         prs_str = ", ".join([f"{ex}: {val}" for ex, val in prs.items()]) if prs else "No personal records yet."
 
         summarized_data = (
+            f"User Fitness Score Details:\n{fit_score_str}\n\n"
             f"Recent sessions:\n{sessions_str}\n\n"
             f"Weight trend: {weight_trend_str}\n\n"
             f"Personal Records (PRs): {prs_str}"
         )
 
         prompt = (
-            f"Based on this user's recent workout data:\n{summarized_data}\n\n"
+            f"Based on this user's recent workout data and health metrics:\n{summarized_data}\n\n"
             f"give one specific, encouraging, actionable coaching tip in 2-3 sentences. "
-            f"Reference something specific from their data (an exercise, a trend, a PR) rather than generic advice."
+            f"Reference their computed Fitness Score and letter grade directly (e.g. 'Your fitness score is X (Y), driven mainly by...'), "
+            f"and refer to something specific from their data rather than generic advice."
         )
 
         client = get_groq_client()

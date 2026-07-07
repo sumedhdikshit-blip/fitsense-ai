@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   setupEventListeners();
   await refreshDashboard();
+  await fetchFitnessScore();
 });
 
 function setupEventListeners() {
@@ -360,5 +361,47 @@ async function fetchCoachTip() {
     loadingEl.style.display = 'none';
     contentEl.style.display = 'block';
     getCoachTipBtn.disabled = false;
+  }
+}
+
+async function fetchFitnessScore() {
+  const scoreValEl = document.getElementById('fitnessScoreVal');
+  const gradeValEl = document.getElementById('fitnessGradeVal');
+  const interpretationEl = document.getElementById('fitnessInterpretation');
+  
+  if (!scoreValEl || !gradeValEl || !interpretationEl) return;
+  
+  try {
+    const res = await fetch('/fitness-score');
+    if (!res.ok) {
+      throw new Error(`Failed to fetch fitness score: ${res.status}`);
+    }
+    const data = await res.json();
+    
+    scoreValEl.textContent = data.score.toFixed(2);
+    gradeValEl.textContent = data.grade;
+    
+    let text = '';
+    const missing = data.missing_inputs || [];
+    const lifestyle = data.breakdown.lifestyle;
+    const activity = data.breakdown.activity;
+    
+    if (activity.score === null) {
+      text = `Lifestyle score: ${lifestyle.score.toFixed(1)}/10. Log some workouts in the app to factor in activity metrics!`;
+    } else {
+      text = `Lifestyle sub-score: ${lifestyle.score.toFixed(1)}/10 | Activity sub-score: ${activity.score.toFixed(1)}/10.`;
+    }
+    
+    if (missing.length > 0) {
+      const friendlyMissing = missing.map(m => m === 'sleep_hours' ? 'Average Sleep' : m === 'stress_level' ? 'Stress Level' : m);
+      text += ` Complete profile inputs for standard tracking: ${friendlyMissing.join(', ')}.`;
+    }
+    
+    interpretationEl.textContent = text;
+  } catch (e) {
+    console.error('fetchFitnessScore error:', e);
+    scoreValEl.textContent = '--';
+    gradeValEl.textContent = '--';
+    interpretationEl.textContent = 'Fitness score unavailable right now.';
   }
 }
