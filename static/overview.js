@@ -123,6 +123,12 @@ function setupEventListeners() {
   if (getCoachTipBtn) {
     getCoachTipBtn.addEventListener('click', fetchCoachTip);
   }
+
+  // AI Insights button
+  const getInsightsBtn = document.getElementById('getInsightsBtn');
+  if (getInsightsBtn) {
+    getInsightsBtn.addEventListener('click', fetchInsights);
+  }
 }
 
 async function refreshDashboard() {
@@ -406,5 +412,90 @@ async function fetchFitnessScore() {
     scoreValEl.textContent = '--';
     gradeValEl.textContent = '--';
     interpretationEl.textContent = 'Fitness score unavailable right now.';
+  }
+}
+
+async function fetchInsights() {
+  const getInsightsBtn = document.getElementById('getInsightsBtn');
+  const loadingEl = document.getElementById('insightsLoading');
+  const placeholderEl = document.getElementById('insightsPlaceholder');
+  const contentEl = document.getElementById('insightsContent');
+
+  if (!getInsightsBtn || !loadingEl || !placeholderEl || !contentEl) return;
+
+  // Show loading state, hide other blocks, disable button
+  loadingEl.style.display = 'flex';
+  placeholderEl.style.display = 'none';
+  contentEl.style.display = 'none';
+  getInsightsBtn.disabled = true;
+
+  try {
+    const res = await fetch('/ai/insights');
+    if (!res.ok) {
+      throw new Error(`Server returned status ${res.status}`);
+    }
+    const data = await res.json();
+    
+    if (data.error) {
+      // Show error clearly
+      placeholderEl.innerHTML = `<p class="coach-placeholder-text" style="color: var(--color-red);">${data.error}</p>`;
+      placeholderEl.style.display = 'block';
+    } else if (data.message) {
+      // Empty state / friendly message
+      placeholderEl.innerHTML = `<p class="coach-placeholder-text" style="color: var(--color-blue); margin-bottom: 15px;">${data.message}</p>
+        <div class="calorie-details-grid" style="grid-template-columns: 1fr 1fr; gap: 12px; width: 100%;">
+          <div class="cal-detail-card consumed-card"><span class="lbl">Progress Summary</span><span class="val" style="font-size: 13px; font-weight: 400; line-height: 1.4; margin-top: 6px;">${data.progress_summary}</span></div>
+          <div class="cal-detail-card burned-card"><span class="lbl">Tips to Improve</span><span class="val" style="font-size: 13px; font-weight: 400; line-height: 1.4; margin-top: 6px;">${data.tips_to_improve}</span></div>
+          <div class="cal-detail-card bmr-card"><span class="lbl">What to Avoid</span><span class="val" style="font-size: 13px; font-weight: 400; line-height: 1.4; margin-top: 6px;">${data.what_to_avoid}</span></div>
+          <div class="cal-detail-card tef-card"><span class="lbl">Next Steps</span><span class="val" style="font-size: 13px; font-weight: 400; line-height: 1.4; margin-top: 6px;">${data.next_steps}</span></div>
+          <div class="cal-detail-card" style="grid-column: span 2; border-color: rgba(255, 255, 255, 0.15);"><span class="lbl">Motivation Note</span><span class="val" style="font-size: 13px; font-weight: 400; line-height: 1.4; margin-top: 6px;">${data.motivation_note}</span></div>
+        </div>`;
+      placeholderEl.style.display = 'block';
+    } else {
+      // Build cards for valid insights
+      contentEl.innerHTML = '';
+      
+      const sections = [
+        { key: 'progress_summary', label: 'Progress Summary', colorClass: 'consumed-card' },
+        { key: 'tips_to_improve', label: 'Tips to Improve', colorClass: 'burned-card' },
+        { key: 'what_to_avoid', label: 'What to Avoid', colorClass: 'bmr-card' },
+        { key: 'next_steps', label: 'Next Steps', colorClass: 'tef-card' },
+        { key: 'motivation_note', label: 'Motivation Note', colorClass: '', span: true }
+      ];
+      
+      sections.forEach(s => {
+        const card = document.createElement('div');
+        card.className = `cal-detail-card ${s.colorClass}`;
+        if (s.span) {
+          card.style.gridColumn = 'span 2';
+          card.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+        }
+        
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'lbl';
+        titleSpan.textContent = s.label;
+        
+        const contentSpan = document.createElement('span');
+        contentSpan.className = 'val';
+        contentSpan.style.fontSize = '13px';
+        contentSpan.style.fontWeight = '400';
+        contentSpan.style.lineHeight = '1.4';
+        contentSpan.style.marginTop = '6px';
+        contentSpan.style.whiteSpace = 'pre-wrap';
+        contentSpan.textContent = data[s.key] || 'No insights available.';
+        
+        card.appendChild(titleSpan);
+        card.appendChild(contentSpan);
+        contentEl.appendChild(card);
+      });
+      contentEl.style.display = 'grid';
+    }
+  } catch (e) {
+    console.error('fetchInsights error:', e);
+    placeholderEl.innerHTML = `<p class="coach-placeholder-text" style="color: var(--color-red);">Insights unavailable right now. Please try again later.</p>`;
+    placeholderEl.style.display = 'block';
+  } finally {
+    loadingEl.style.display = 'none';
+    getInsightsBtn.disabled = false;
   }
 }

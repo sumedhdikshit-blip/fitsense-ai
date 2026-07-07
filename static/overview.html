@@ -148,6 +148,33 @@
         </div>
       </div>
     </section>
+ 
+    <!-- AI Insights Section -->
+    <section class="ai-insights-section" style="margin-top: 20px;">
+      <div class="panel ai-coach-panel" style="background: linear-gradient(135deg, #181c20 0%, #111315 100%);">
+        <div class="panel-header">
+          <div class="insights-header-title" style="display: flex; align-items: center;">
+            <svg class="insights-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 20px; height: 20px; color: var(--color-blue); margin-right: 8px; vertical-align: middle; display: inline-block;">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h2 style="display: inline-block; vertical-align: middle; margin: 0;">AI Deep Insights</h2>
+          </div>
+          <button class="btn btn-success btn-sm" id="getInsightsBtn">Get My Insights</button>
+        </div>
+        <div class="insights-body" style="margin-top: 15px; min-height: 80px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+          <div id="insightsLoading" style="display: none; width: 100%;" class="coach-loading-container">
+            <div class="coach-loading-spinner" style="border-top-color: var(--color-blue);"></div>
+            <span>Analyzing your metrics and compiling deep insights...</span>
+          </div>
+          <div id="insightsPlaceholder" class="coach-tip-content" style="width: 100%;">
+            <p class="coach-placeholder-text">Click <strong>Get My Insights</strong> to compile detailed multi-dimensional insights across your nutrition, consistency, what to avoid, and next steps.</p>
+          </div>
+          <div id="insightsContent" class="calorie-details-grid" style="display: none; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%;">
+            <!-- Rendered cards go here -->
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 
   <!-- Quick Weight Modal -->
