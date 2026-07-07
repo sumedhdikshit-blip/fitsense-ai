@@ -364,3 +364,115 @@ def test_multi_user_data_isolation():
                 os.remove(temp_db_path)
         except PermissionError:
             pass
+
+def test_food_search_and_logging():
+    """Verify that food searching and logging endpoints function correctly and accumulate properly."""
+    import tempfile
+    from database import db
+    from fastapi.testclient import TestClient
+    from main import app
+    
+    temp_db_fd, temp_db_path = tempfile.mkstemp()
+    os.close(temp_db_fd)
+    
+    try:
+        original_db_path = db.DB_PATH
+        db.DB_PATH = temp_db_path
+        db.init_db()
+        
+        # Seed a test food item
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO food_database (
+                name, serving_description, calories, protein_g, carbs_g, fat_g,
+                saturated_fat_g, fiber_g, sodium_mg, sugar_g, calcium_mg, iron_mg, vitamin_c_mg
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            "Test Apple", "100g", 52.0, 0.3, 13.8, 0.2, 0.0, 2.4, 1.0, 10.4, 6.0, 0.1, 4.6
+        ))
+        conn.commit()
+        conn.close()
+        
+        client = TestClient(app)
+        
+        # Mock auth via dependency override
+        from main import get_current_user_id
+        app.dependency_overrides[get_current_user_id] = lambda: 1
+        
+        # 1. Search for Apple
+        resp = client.get("/food/search?q=Apple")
+        assert resp.status_code == 200
+        results = resp.json()
+        assert len(results) >= 1
+        assert results[0]["name"] == "Test Apple"
+        assert results[0]["calories"] == 52.0
+        
+        # 2. Log food (1.5 servings = 150g)
+        log_payload = {
+            "date": "2026-07-07",
+            "calories_consumed": 78.0,
+            "protein_g": 0.45,
+            "carbs_g": 20.7,
+            "fat_g": 0.3,
+            "saturated_fat_g": 0.0,
+            "fiber_g": 3.6,
+            "sodium_mg": 1.5,
+            "sugar_g": 15.6,
+            "calcium_mg": 9.0,
+            "iron_mg": 0.15,
+            "vitamin_c_mg": 6.9
+        }
+        resp = client.post("/nutrition/log", json=log_payload)
+        assert resp.status_code == 200
+        
+        # 3. Retrieve nutrition data and assert scaled totals match
+        nutrition_data = db.get_nutrition_data(1, "2026-07-07")
+        assert nutrition_data is not None
+        assert nutrition_data["calories_consumed"] == 78.0
+        assert nutrition_data["protein_g"] == 0.45
+        assert nutrition_data["carbs_g"] == 20.7
+        assert nutrition_data["fat_g"] == 0.3
+        assert nutrition_data["fiber_g"] == 3.6
+        assert nutrition_data["sodium_mg"] == 1.5
+        assert nutrition_data["sugar_g"] == 15.6
+        assert nutrition_data["calcium_mg"] == 9.0
+        assert nutrition_data["iron_mg"] == 0.15
+        assert nutrition_data["vitamin_c_mg"] == 6.9
+        
+        # 4. Log manual entry fallback (accumulates)
+        manual_payload = {
+            "date": "2026-07-07",
+            "calories_consumed": 200.0,
+            "protein_g": 10.0,
+            "carbs_g": 20.0,
+            "fat_g": 5.0,
+            "saturated_fat_g": 0.0,
+            "fiber_g": 0.0,
+            "sodium_mg": 0.0,
+            "sugar_g": 0.0,
+            "calcium_mg": 0.0,
+            "iron_mg": 0.0,
+            "vitamin_c_mg": 0.0
+        }
+        resp = client.post("/nutrition/log", json=manual_payload)
+        assert resp.status_code == 200
+        
+        # Verify accumulation
+        nutrition_data2 = db.get_nutrition_data(1, "2026-07-07")
+        assert nutrition_data2["calories_consumed"] == 278.0
+        assert nutrition_data2["protein_g"] == 10.45
+        assert nutrition_data2["carbs_g"] == 40.7
+        assert nutrition_data2["fat_g"] == 5.3
+        
+        # Clean dependency overrides
+        app.dependency_overrides.clear()
+        
+    finally:
+        db.DB_PATH = original_db_path
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass
+

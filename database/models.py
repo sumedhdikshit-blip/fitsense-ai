@@ -51,6 +51,13 @@ class NutritionLogRequest(BaseModel):
     protein_g: float = Field(0.0, ge=0)
     carbs_g: float = Field(0.0, ge=0)
     fat_g: float = Field(0.0, ge=0)
+    saturated_fat_g: float = Field(0.0, ge=0)
+    fiber_g: float = Field(0.0, ge=0)
+    sodium_mg: float = Field(0.0, ge=0)
+    sugar_g: float = Field(0.0, ge=0)
+    calcium_mg: float = Field(0.0, ge=0)
+    iron_mg: float = Field(0.0, ge=0)
+    vitamin_c_mg: float = Field(0.0, ge=0)
 
 class UserRegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)

@@ -164,6 +164,13 @@ def get_nutrition_breakdown_internal(user_id, date_str, profile):
         "protein_g": nutrition.get("protein_g") or 0.0,
         "carbs_g": nutrition.get("carbs_g") or 0.0,
         "fat_g": nutrition.get("fat_g") or 0.0,
+        "saturated_fat_g": nutrition.get("saturated_fat_g") or 0.0,
+        "fiber_g": nutrition.get("fiber_g") or 0.0,
+        "sodium_mg": nutrition.get("sodium_mg") or 0.0,
+        "sugar_g": nutrition.get("sugar_g") or 0.0,
+        "calcium_mg": nutrition.get("calcium_mg") or 0.0,
+        "iron_mg": nutrition.get("iron_mg") or 0.0,
+        "vitamin_c_mg": nutrition.get("vitamin_c_mg") or 0.0,
         "calories_burned_exercise": exercise_burn,
         "calories_burned_bmr": bmr,
         "tef_calories": tef,
@@ -879,6 +886,19 @@ def get_cardio_date(date: str, user_id: int = Depends(get_current_user_id)):
 
 # --- Part 2 Nutrition Endpoints ---
 
+@app.get("/food/search")
+def search_food(q: str = "", user_id: int = Depends(get_current_user_id)):
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM food_database 
+        WHERE name LIKE ? 
+        LIMIT 15
+    """, (f"%{q}%",))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 @app.post("/nutrition/log")
 def log_nutrition_entry(data: models.NutritionLogRequest, user_id: int = Depends(get_current_user_id)):
     db.log_nutrition(
@@ -887,7 +907,14 @@ def log_nutrition_entry(data: models.NutritionLogRequest, user_id: int = Depends
         calories_consumed=data.calories_consumed,
         protein=data.protein_g,
         carbs=data.carbs_g,
-        fat=data.fat_g
+        fat=data.fat_g,
+        saturated_fat=data.saturated_fat_g,
+        fiber=data.fiber_g,
+        sodium=data.sodium_mg,
+        sugar=data.sugar_g,
+        calcium=data.calcium_mg,
+        iron=data.iron_mg,
+        vitamin_c=data.vitamin_c_mg
     )
     return {"status": "success", "message": "Nutrition logs saved successfully"}
 

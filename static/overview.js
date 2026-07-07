@@ -52,16 +52,116 @@ function setupEventListeners() {
   const foodModal = document.getElementById('foodModal');
   const closeFoodBtn = document.getElementById('closeFoodBtn');
   const saveFoodBtn = document.getElementById('saveFoodBtn');
+  
   logFoodBtn.addEventListener('click', () => {
     document.getElementById('foodDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('foodCalories').value = '';
     document.getElementById('foodProtein').value = 0;
     document.getElementById('foodCarbs').value = 0;
     document.getElementById('foodFat').value = 0;
+    
+    // Reset search fields
+    document.getElementById('foodSearchInput').value = '';
+    document.getElementById('foodSearchResults').style.display = 'none';
+    document.getElementById('selectedFoodContainer').style.display = 'none';
+    window.selectedFood = null;
+    
     foodModal.classList.add('active');
   });
   closeFoodBtn.addEventListener('click', () => foodModal.classList.remove('active'));
   saveFoodBtn.addEventListener('click', saveFood);
+
+  // Setup Food Search listeners
+  let foodSearchDebounceTimer = null;
+  const foodSearchInput = document.getElementById('foodSearchInput');
+  const foodSearchResults = document.getElementById('foodSearchResults');
+  const foodQuantityInput = document.getElementById('foodQuantity');
+  const clearSelectedFoodBtn = document.getElementById('clearSelectedFoodBtn');
+
+  if (foodSearchInput) {
+    foodSearchInput.addEventListener('input', () => {
+      clearTimeout(foodSearchDebounceTimer);
+      const q = foodSearchInput.value.trim();
+      if (q.length < 2) {
+        foodSearchResults.style.display = 'none';
+        return;
+      }
+      foodSearchDebounceTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/food/search?q=${encodeURIComponent(q)}`);
+          if (res.ok) {
+            const foods = await res.json();
+            renderFoodSearchResults(foods);
+          }
+        } catch (e) {
+          console.error('Error searching food:', e);
+        }
+      }, 300);
+    });
+  }
+
+  function renderFoodSearchResults(foods) {
+    foodSearchResults.innerHTML = '';
+    if (!foods || foods.length === 0) {
+      const emptyDiv = document.createElement('div');
+      emptyDiv.className = 'search-result-item';
+      emptyDiv.style.cursor = 'default';
+      emptyDiv.textContent = 'No foods found';
+      foodSearchResults.appendChild(emptyDiv);
+      foodSearchResults.style.display = 'block';
+      return;
+    }
+    foods.forEach(food => {
+      const item = document.createElement('div');
+      item.className = 'search-result-item';
+      item.innerHTML = `<strong>${food.name}</strong> <span style="font-size:0.82rem; color:#a6adc8;">(${food.calories} kcal, P: ${food.protein_g}g, C: ${food.carbs_g}g, F: ${food.fat_g}g)</span>`;
+      item.addEventListener('click', () => {
+        selectFood(food);
+      });
+      foodSearchResults.appendChild(item);
+    });
+    foodSearchResults.style.display = 'block';
+  }
+
+  function selectFood(food) {
+    window.selectedFood = food;
+    document.getElementById('selectedFoodName').textContent = `Selected: ${food.name}`;
+    document.getElementById('foodQuantity').value = '1.0';
+    document.getElementById('selectedFoodContainer').style.display = 'block';
+    foodSearchResults.style.display = 'none';
+    foodSearchInput.value = '';
+    updateCalculatedNutrients();
+  }
+
+  function updateCalculatedNutrients() {
+    if (!window.selectedFood) return;
+    const qty = parseFloat(document.getElementById('foodQuantity').value) || 1.0;
+    document.getElementById('foodCalories').value = Math.round(window.selectedFood.calories * qty);
+    document.getElementById('foodProtein').value = (window.selectedFood.protein_g * qty).toFixed(1);
+    document.getElementById('foodCarbs').value = (window.selectedFood.carbs_g * qty).toFixed(1);
+    document.getElementById('foodFat').value = (window.selectedFood.fat_g * qty).toFixed(1);
+  }
+
+  if (foodQuantityInput) {
+    foodQuantityInput.addEventListener('input', updateCalculatedNutrients);
+  }
+
+  if (clearSelectedFoodBtn) {
+    clearSelectedFoodBtn.addEventListener('click', () => {
+      window.selectedFood = null;
+      document.getElementById('selectedFoodContainer').style.display = 'none';
+      document.getElementById('foodCalories').value = '';
+      document.getElementById('foodProtein').value = 0;
+      document.getElementById('foodCarbs').value = 0;
+      document.getElementById('foodFat').value = 0;
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    if (foodSearchResults && !foodSearchInput.contains(e.target) && !foodSearchResults.contains(e.target)) {
+      foodSearchResults.style.display = 'none';
+    }
+  });
 
   // Cardio modal
   const logCardioBtn = document.getElementById('logCardioBtn');
@@ -280,13 +380,33 @@ async function saveWeight() {
 }
 
 async function saveFood() {
-  const payload = {
-    date: document.getElementById('foodDate').value,
+  const dateVal = document.getElementById('foodDate').value;
+  let payload = {
+    date: dateVal,
     calories_consumed: parseFloat(document.getElementById('foodCalories').value) || 0.0,
     protein_g: parseFloat(document.getElementById('foodProtein').value) || 0.0,
     carbs_g: parseFloat(document.getElementById('foodCarbs').value) || 0.0,
     fat_g: parseFloat(document.getElementById('foodFat').value) || 0.0,
+    saturated_fat_g: 0.0,
+    fiber_g: 0.0,
+    sodium_mg: 0.0,
+    sugar_g: 0.0,
+    calcium_mg: 0.0,
+    iron_mg: 0.0,
+    vitamin_c_mg: 0.0
   };
+
+  if (window.selectedFood) {
+    const qty = parseFloat(document.getElementById('foodQuantity').value) || 1.0;
+    payload.saturated_fat_g = (window.selectedFood.saturated_fat_g || 0.0) * qty;
+    payload.fiber_g = (window.selectedFood.fiber_g || 0.0) * qty;
+    payload.sodium_mg = (window.selectedFood.sodium_mg || 0.0) * qty;
+    payload.sugar_g = (window.selectedFood.sugar_g || 0.0) * qty;
+    payload.calcium_mg = (window.selectedFood.calcium_mg || 0.0) * qty;
+    payload.iron_mg = (window.selectedFood.iron_mg || 0.0) * qty;
+    payload.vitamin_c_mg = (window.selectedFood.vitamin_c_mg || 0.0) * qty;
+  }
+
   try {
     const res = await fetch('/nutrition/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (res.ok) {

@@ -176,6 +176,35 @@ def init_db():
     except sqlite3.OperationalError:
         pass # Already migrated
 
+    try:
+        cursor.execute("ALTER TABLE daily_nutrition ADD COLUMN saturated_fat_g REAL DEFAULT 0.0;")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE daily_nutrition ADD COLUMN fiber_g REAL DEFAULT 0.0;")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE daily_nutrition ADD COLUMN sodium_mg REAL DEFAULT 0.0;")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE daily_nutrition ADD COLUMN sugar_g REAL DEFAULT 0.0;")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE daily_nutrition ADD COLUMN calcium_mg REAL DEFAULT 0.0;")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE daily_nutrition ADD COLUMN iron_mg REAL DEFAULT 0.0;")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE daily_nutrition ADD COLUMN vitamin_c_mg REAL DEFAULT 0.0;")
+    except sqlite3.OperationalError:
+        pass
+
     # 5. recovery_logs
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS recovery_logs (
@@ -220,6 +249,13 @@ def init_db():
       protein_g REAL DEFAULT 0.0,
       carbs_g REAL DEFAULT 0.0,
       fat_g REAL DEFAULT 0.0,
+      saturated_fat_g REAL DEFAULT 0.0,
+      fiber_g REAL DEFAULT 0.0,
+      sodium_mg REAL DEFAULT 0.0,
+      sugar_g REAL DEFAULT 0.0,
+      calcium_mg REAL DEFAULT 0.0,
+      iron_mg REAL DEFAULT 0.0,
+      vitamin_c_mg REAL DEFAULT 0.0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(user_id)
     );
@@ -487,7 +523,7 @@ def get_cardio_logs(user_id, date):
 
 # Nutrition logs
 
-def log_nutrition(user_id, date, calories_consumed, protein, carbs, fat):
+def log_nutrition(user_id, date, calories_consumed, protein, carbs, fat, saturated_fat=0.0, fiber=0.0, sodium=0.0, sugar=0.0, calcium=0.0, iron=0.0, vitamin_c=0.0):
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -501,14 +537,23 @@ def log_nutrition(user_id, date, calories_consumed, protein, carbs, fat):
             SET calories_consumed = calories_consumed + ?,
                 protein_g = protein_g + ?,
                 carbs_g = carbs_g + ?,
-                fat_g = fat_g + ?
+                fat_g = fat_g + ?,
+                saturated_fat_g = saturated_fat_g + ?,
+                fiber_g = fiber_g + ?,
+                sodium_mg = sodium_mg + ?,
+                sugar_g = sugar_g + ?,
+                calcium_mg = calcium_mg + ?,
+                iron_mg = iron_mg + ?,
+                vitamin_c_mg = vitamin_c_mg + ?
             WHERE entry_id = ?
-        """, (calories_consumed, protein, carbs, fat, row["entry_id"]))
+        """, (calories_consumed, protein, carbs, fat, saturated_fat, fiber, sodium, sugar, calcium, iron, vitamin_c, row["entry_id"]))
     else:
         cursor.execute("""
-            INSERT INTO daily_nutrition (user_id, date, calories_consumed, protein_g, carbs_g, fat_g)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (user_id, date, calories_consumed, protein, carbs, fat))
+            INSERT INTO daily_nutrition (
+                user_id, date, calories_consumed, protein_g, carbs_g, fat_g,
+                saturated_fat_g, fiber_g, sodium_mg, sugar_g, calcium_mg, iron_mg, vitamin_c_mg
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, date, calories_consumed, protein, carbs, fat, saturated_fat, fiber, sodium, sugar, calcium, iron, vitamin_c))
         
     conn.commit()
     conn.close()

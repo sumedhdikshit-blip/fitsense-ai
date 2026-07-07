@@ -9,6 +9,35 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <style>
+    .search-results-dropdown {
+      position: absolute;
+      background: #1e1e2e;
+      border: 1px solid #313244;
+      width: calc(100% - 24px);
+      z-index: 1050;
+      max-height: 200px;
+      overflow-y: auto;
+      border-radius: 6px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+      margin-top: 4px;
+    }
+    .search-result-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid #313244;
+      color: #cdd6f4;
+      font-size: 0.9rem;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .search-result-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #89b4fa;
+    }
+    .search-result-item:last-child {
+      border-bottom: none;
+    }
+  </style>
 </head>
 <body>
   <!-- Profile Setup Alert Banner -->
@@ -211,6 +240,25 @@
         <div class="form-group">
           <label for="foodDate">Date</label>
           <input type="date" id="foodDate" class="form-input">
+        </div>
+        <div class="form-group" style="position: relative;">
+          <label for="foodSearchInput">Search Food Database</label>
+          <input type="text" id="foodSearchInput" placeholder="Search for food (e.g. Oats, Eggs, Apple)..." class="form-input" autocomplete="off">
+          <div id="foodSearchResults" class="search-results-dropdown" style="display: none;"></div>
+        </div>
+        <div id="selectedFoodContainer" style="display: none; background: rgba(137, 180, 250, 0.1); border: 1px solid rgba(137, 180, 250, 0.3); padding: 12px; border-radius: 6px; margin-bottom: 15px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong id="selectedFoodName" style="color: #89b4fa; font-size: 0.95rem;">Selected: None</strong>
+            <button id="clearSelectedFoodBtn" class="btn btn-sm btn-danger" style="padding: 2px 8px; font-size: 0.8rem; height: auto;">Clear</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label for="foodQuantity" style="margin: 0; font-size: 0.85rem; color: #a6adc8;">Serving Multiplier:</label>
+            <input type="number" id="foodQuantity" value="1.0" min="0.01" step="0.1" class="form-input" style="width: 80px; padding: 4px 8px; height: auto;">
+            <span style="font-size: 0.85rem; color: #a6adc8;">(multiplier of 100g)</span>
+          </div>
+        </div>
+        <div style="margin-bottom: 12px; font-weight: 500; font-size: 0.9rem; color: #a6adc8; text-align: center;" id="manualLabelSeparator">
+          &mdash; OR enter values manually &mdash;
         </div>
         <div class="form-group">
           <label for="foodCalories">Total Calories (kcal)</label>
