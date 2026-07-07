@@ -268,6 +268,7 @@ async function saveWeight() {
       document.getElementById('weightModal').classList.remove('active');
       await fetchProfile();
       await refreshDashboard();
+      await fetchFitnessScore();
     }
   } catch (e) { console.error('saveWeight error:', e); }
 }
@@ -285,6 +286,7 @@ async function saveFood() {
     if (res.ok) {
       document.getElementById('foodModal').classList.remove('active');
       await refreshDashboard();
+      await fetchFitnessScore();
     }
   } catch (e) { console.error('saveFood error:', e); }
 }
@@ -321,6 +323,7 @@ async function saveCardio() {
     if (res.ok) {
       document.getElementById('cardioModal').classList.remove('active');
       await refreshDashboard();
+      await fetchFitnessScore();
     }
   } catch (e) { console.error('saveCardio error:', e); }
 }

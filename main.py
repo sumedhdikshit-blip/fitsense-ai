@@ -3,6 +3,9 @@ import cv2
 import numpy as np
 import asyncio
 import uvicorn
+from concurrent.futures import ThreadPoolExecutor
+
+pose_executor = ThreadPoolExecutor(max_workers=4)
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, Depends, status
 from fastapi.staticfiles import StaticFiles
@@ -29,6 +32,8 @@ async def lifespan(app: FastAPI):
     # Initialize SQLite database
     db.init_db()
     yield
+    # Shutdown executor
+    pose_executor.shutdown(wait=True)
 
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="FitSense AI Core Engine", lifespan=lifespan)
@@ -750,6 +755,130 @@ def get_dashboard_today(user_id: int = Depends(get_current_user_id)):
 
 # ==================== WEBSOCKET ====================
 
+def process_and_draw_frame(detector, counter, frame):
+    height, width = frame.shape[:2]
+    
+    # Perform pose detection
+    results = detector.process_frame(frame)
+    landmarks_dict = detector.get_landmarks_dict(results)
+    
+    current_angles = {}
+    
+    if landmarks_dict:
+        # 1. Compute angles dynamically
+        angles_config = counter.config.get("angles", {})
+        for angle_name, joints in angles_config.items():
+            if all(j in landmarks_dict for j in joints):
+                pt_a = landmarks_dict[joints[0]]
+                pt_b = landmarks_dict[joints[1]]
+                pt_c = landmarks_dict[joints[2]]
+                current_angles[angle_name] = calculate_angle(pt_a, pt_b, pt_c)
+        
+        # 2. Update counter state machine
+        counter.update(current_angles, landmarks_dict)
+        
+        # 3. Draw skeleton
+        frame = detector.draw_skeleton(frame, results)
+        
+        # 4. Overlay angles at joint vertices
+        for angle_name, joints in angles_config.items():
+            if angle_name in current_angles:
+                vertex_joint = joints[1]
+                if vertex_joint in landmarks_dict:
+                    pt_vertex = landmarks_dict[vertex_joint]
+                    px = int(pt_vertex[0] * width)
+                    py = int(pt_vertex[1] * height)
+                    cv2.putText(
+                        frame,
+                        f"{int(current_angles[angle_name])}deg",
+                        (px + 10, py - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.45,
+                        (255, 255, 255),
+                        1,
+                        cv2.LINE_AA
+                    )
+    else:
+        # Signal tracking loss to the counter to reset time tracking
+        counter.update({}, {})
+        
+        # Overlay warning in red on the frame center
+        (tw, th), _ = cv2.getTextSize("TRACKING LOST - PAUSED", cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+        tx = (width - tw) // 2
+        ty = (height - th) // 2
+        cv2.rectangle(frame, (tx - 15, ty - 25), (tx + tw + 15, ty + 15), (0, 0, 0), -1)
+        cv2.rectangle(frame, (tx - 15, ty - 25), (tx + tw + 15, ty + 15), (68, 23, 255), 2)
+        cv2.putText(frame, "TRACKING LOST - PAUSED", (tx, ty - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (68, 23, 255), 2, cv2.LINE_AA)
+        
+        # Prepend tracking lost warning to feedback list
+        tracking_feedback = {"message": "Pose lost - reposition yourself", "severity": "YELLOW"}
+        if not any(f["message"] == tracking_feedback["message"] for f in counter.latest_feedback):
+            counter.latest_feedback = [tracking_feedback] + counter.latest_feedback
+                    
+    # Overlay HUD elements
+    # 1. Reps / Hold timer (top-right)
+    if counter.mode == "hold":
+        # Running timer display
+        min_sec = f"{counter.reps_counted // 60:02d}:{counter.reps_counted % 60:02d}"
+        cv2.putText(frame, "HOLD TIME", (width - 150, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (170, 170, 170), 1, cv2.LINE_AA)
+        cv2.putText(frame, min_sec, (width - 150, 85), cv2.FONT_HERSHEY_DUPLEX, 1.6, (0, 200, 83), 3, cv2.LINE_AA)
+    else:
+        cv2.putText(frame, "REPS", (width - 120, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (170, 170, 170), 1, cv2.LINE_AA)
+        cv2.putText(frame, str(counter.reps_counted), (width - 120, 85), cv2.FONT_HERSHEY_DUPLEX, 1.8, (0, 200, 83), 3, cv2.LINE_AA)
+    
+    # 2. Stage
+    stage_str = (counter.stage or "--").upper()
+    cv2.putText(frame, f"STAGE: {stage_str}", (width - 150, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
+    
+    # 3. Feedback Badges
+    y_offset = 20
+    for fb in counter.latest_feedback[:2]:
+        msg = fb["message"]
+        sev = fb["severity"]
+        
+        if sev == "RED":
+            bg_color = (68, 23, 255)
+            text_color = (255, 255, 255)
+        elif sev == "YELLOW":
+            bg_color = (0, 214, 255)
+            text_color = (0, 0, 0)
+        else:
+            bg_color = (83, 200, 0)
+            text_color = (255, 255, 255)
+            
+        (text_w, text_h), _ = cv2.getTextSize(msg, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+        cv2.rectangle(frame, (15, y_offset), (25 + text_w + 10, y_offset + 25), bg_color, -1)
+        cv2.rectangle(frame, (15, y_offset), (25 + text_w + 10, y_offset + 25), (44, 44, 44), 1)
+        cv2.putText(frame, msg, (23, y_offset + 17), cv2.FONT_HERSHEY_SIMPLEX, 0.4, text_color, 1, cv2.LINE_AA)
+        y_offset += 32
+        
+    # 4. Form Score Bar
+    bar_x1, bar_y1 = 40, height - 30
+    bar_x2, bar_y2 = width - 40, height - 20
+    cv2.rectangle(frame, (bar_x1, bar_y1), (bar_x2, bar_y2), (40, 40, 40), -1)
+    
+    score_width = int((bar_x2 - bar_x1) * (counter.avg_form_score / 100.0))
+    if counter.avg_form_score >= 75:
+        fill_color = (83, 200, 0)
+    elif counter.avg_form_score >= 50:
+        fill_color = (0, 214, 255)
+    else:
+        fill_color = (68, 23, 255)
+    cv2.rectangle(frame, (bar_x1, bar_y1), (bar_x1 + score_width, bar_y2), fill_color, -1)
+    cv2.putText(
+        frame,
+        f"AVG FORM SCORE: {int(counter.avg_form_score)}%",
+        (bar_x1, bar_y1 - 8),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.45,
+        (255, 255, 255),
+        1,
+        cv2.LINE_AA
+    )
+    
+    out_base64 = encode_frame_to_base64(frame)
+    return out_base64, current_angles
+
 @app.websocket("/ws/workout")
 async def websocket_workout(websocket: WebSocket):
     await websocket.accept()
@@ -768,6 +897,7 @@ async def websocket_workout(websocket: WebSocket):
                 pass
 
         ping_task = asyncio.create_task(send_pings())
+        loop = asyncio.get_running_loop()
         
         while True:
             data = await websocket.receive_json()
@@ -784,8 +914,6 @@ async def websocket_workout(websocket: WebSocket):
             if frame is None:
                 continue
                 
-            height, width = frame.shape[:2]
-            
             # Lazily initialize counter when exercise changes
             if counter is None or counter.exercise_key != exercise_key:
                 ex_config = EXERCISE_LIBRARY.get(exercise_key)
@@ -798,125 +926,14 @@ async def websocket_workout(websocket: WebSocket):
                 if current_reps > 0:
                     counter.reps_counted = current_reps
                 
-            # Perform pose detection
-            results = detector.process_frame(frame)
-            landmarks_dict = detector.get_landmarks_dict(results)
-            
-            current_angles = {}
-            
-            if landmarks_dict:
-                # 1. Compute angles dynamically
-                angles_config = counter.config.get("angles", {})
-                for angle_name, joints in angles_config.items():
-                    if all(j in landmarks_dict for j in joints):
-                        pt_a = landmarks_dict[joints[0]]
-                        pt_b = landmarks_dict[joints[1]]
-                        pt_c = landmarks_dict[joints[2]]
-                        current_angles[angle_name] = calculate_angle(pt_a, pt_b, pt_c)
-                
-                # 2. Update counter state machine
-                counter.update(current_angles, landmarks_dict)
-                
-                # 3. Draw skeleton
-                frame = detector.draw_skeleton(frame, results)
-                
-                # 4. Overlay angles at joint vertices
-                for angle_name, joints in angles_config.items():
-                    if angle_name in current_angles:
-                        vertex_joint = joints[1]
-                        if vertex_joint in landmarks_dict:
-                            pt_vertex = landmarks_dict[vertex_joint]
-                            px = int(pt_vertex[0] * width)
-                            py = int(pt_vertex[1] * height)
-                            cv2.putText(
-                                frame,
-                                f"{int(current_angles[angle_name])}deg",
-                                (px + 10, py - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                0.45,
-                                (255, 255, 255),
-                                1,
-                                cv2.LINE_AA
-                            )
-            else:
-                # Signal tracking loss to the counter to reset time tracking
-                counter.update({}, {})
-                
-                # Overlay warning in red on the frame center
-                (tw, th), _ = cv2.getTextSize("TRACKING LOST - PAUSED", cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                tx = (width - tw) // 2
-                ty = (height - th) // 2
-                cv2.rectangle(frame, (tx - 15, ty - 25), (tx + tw + 15, ty + 15), (0, 0, 0), -1)
-                cv2.rectangle(frame, (tx - 15, ty - 25), (tx + tw + 15, ty + 15), (68, 23, 255), 2)
-                cv2.putText(frame, "TRACKING LOST - PAUSED", (tx, ty - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (68, 23, 255), 2, cv2.LINE_AA)
-                
-                # Prepend tracking lost warning to feedback list
-                tracking_feedback = {"message": "Pose lost - reposition yourself", "severity": "YELLOW"}
-                if not any(f["message"] == tracking_feedback["message"] for f in counter.latest_feedback):
-                    counter.latest_feedback = [tracking_feedback] + counter.latest_feedback
-                            
-            # Overlay HUD elements
-            # 1. Reps / Hold timer (top-right)
-            if counter.mode == "hold":
-                # Running timer display
-                min_sec = f"{counter.reps_counted // 60:02d}:{counter.reps_counted % 60:02d}"
-                cv2.putText(frame, "HOLD TIME", (width - 150, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (170, 170, 170), 1, cv2.LINE_AA)
-                cv2.putText(frame, min_sec, (width - 150, 85), cv2.FONT_HERSHEY_DUPLEX, 1.6, (0, 200, 83), 3, cv2.LINE_AA)
-            else:
-                cv2.putText(frame, "REPS", (width - 120, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (170, 170, 170), 1, cv2.LINE_AA)
-                cv2.putText(frame, str(counter.reps_counted), (width - 120, 85), cv2.FONT_HERSHEY_DUPLEX, 1.8, (0, 200, 83), 3, cv2.LINE_AA)
-            
-            # 2. Stage
-            stage_str = (counter.stage or "--").upper()
-            cv2.putText(frame, f"STAGE: {stage_str}", (width - 150, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
-            
-            # 3. Feedback Badges
-            y_offset = 20
-            for fb in counter.latest_feedback[:2]:
-                msg = fb["message"]
-                sev = fb["severity"]
-                
-                if sev == "RED":
-                    bg_color = (68, 23, 255)
-                    text_color = (255, 255, 255)
-                elif sev == "YELLOW":
-                    bg_color = (0, 214, 255)
-                    text_color = (0, 0, 0)
-                else:
-                    bg_color = (83, 200, 0)
-                    text_color = (255, 255, 255)
-                    
-                (text_w, text_h), _ = cv2.getTextSize(msg, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
-                cv2.rectangle(frame, (15, y_offset), (25 + text_w + 10, y_offset + 25), bg_color, -1)
-                cv2.rectangle(frame, (15, y_offset), (25 + text_w + 10, y_offset + 25), (44, 44, 44), 1)
-                cv2.putText(frame, msg, (23, y_offset + 17), cv2.FONT_HERSHEY_SIMPLEX, 0.4, text_color, 1, cv2.LINE_AA)
-                y_offset += 32
-                
-            # 4. Form Score Bar
-            bar_x1, bar_y1 = 40, height - 30
-            bar_x2, bar_y2 = width - 40, height - 20
-            cv2.rectangle(frame, (bar_x1, bar_y1), (bar_x2, bar_y2), (40, 40, 40), -1)
-            
-            score_width = int((bar_x2 - bar_x1) * (counter.avg_form_score / 100.0))
-            if counter.avg_form_score >= 75:
-                fill_color = (83, 200, 0)
-            elif counter.avg_form_score >= 50:
-                fill_color = (0, 214, 255)
-            else:
-                fill_color = (68, 23, 255)
-            cv2.rectangle(frame, (bar_x1, bar_y1), (bar_x1 + score_width, bar_y2), fill_color, -1)
-            cv2.putText(
-                frame,
-                f"AVG FORM SCORE: {int(counter.avg_form_score)}%",
-                (bar_x1, bar_y1 - 8),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.45,
-                (255, 255, 255),
-                1,
-                cv2.LINE_AA
+            # Offload heavy rendering, pose detection and base64 encoding to thread pool
+            out_base64, current_angles = await loop.run_in_executor(
+                pose_executor,
+                process_and_draw_frame,
+                detector,
+                counter,
+                frame
             )
-            
-            out_base64 = encode_frame_to_base64(frame)
             
             response = {
                 "frame": out_base64,

@@ -19,6 +19,7 @@ let sessionAvgScore = 100;
 let currentSessionId = null;
 let isHoldMode = false;
 let workoutStartTime = 0;
+let captureCanvas = null;
 
 // DOM refs (filled after DOMContentLoaded)
 let video, canvas, ctx, canvasPlaceholder;
@@ -315,12 +316,18 @@ function connectWebSocket() {
 
 function startFrameLoop() {
   if (sendInterval) clearInterval(sendInterval);
+  
+  if (!captureCanvas) {
+    captureCanvas = document.createElement('canvas');
+    captureCanvas.width = 640;
+    captureCanvas.height = 480;
+  }
+  const captureCtx = captureCanvas.getContext('2d');
+  
   sendInterval = setInterval(() => {
     if (!isSending || !socket || socket.readyState !== WebSocket.OPEN) return;
-    const tmp = document.createElement('canvas');
-    tmp.width = 640; tmp.height = 480;
-    tmp.getContext('2d').drawImage(video, 0, 0, 640, 480);
-    socket.send(JSON.stringify({ frame: tmp.toDataURL('image/jpeg', 0.7), exercise: currentExerciseKey, current_reps: lastRepsCounted }));
+    captureCtx.drawImage(video, 0, 0, 640, 480);
+    socket.send(JSON.stringify({ frame: captureCanvas.toDataURL('image/jpeg', 0.7), exercise: currentExerciseKey, current_reps: lastRepsCounted }));
   }, 100);
 }
 

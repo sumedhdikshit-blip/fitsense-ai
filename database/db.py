@@ -266,6 +266,10 @@ def init_db():
                 SET username = 'athlete', password_hash = ?, is_admin = 1
                 WHERE user_id = 1
             """, (hashed,))
+    # Create indexes for performance optimization
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_date ON sessions(user_id, date);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exercises_session ON exercises(session_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sets_exercise ON sets(exercise_id);")
         
     conn.commit()
     conn.close()
