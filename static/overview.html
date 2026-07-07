@@ -100,6 +100,23 @@
         <div class="weight-chart-container">
           <canvas id="weightChart" width="550" height="220"></canvas>
         </div>
+        
+        <!-- BMI and Weight Status Widgets -->
+        <div class="bmi-status-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+          <div class="weight-summary-bar" style="justify-content: center; text-align: center; padding: 8px 15px;">
+            <div class="weight-summary-item">
+              <span class="summary-lbl" style="font-size: 9px;">Body Mass Index (BMI)</span>
+              <span class="summary-val" id="bmiDisplay" style="font-size: 18px; color: var(--color-blue); text-shadow: 0 0 8px rgba(41, 182, 246, 0.2);">--</span>
+            </div>
+          </div>
+          <div class="weight-summary-bar" style="justify-content: center; text-align: center; padding: 8px 15px;">
+            <div class="weight-summary-item">
+              <span class="summary-lbl">Weight Status</span>
+              <span class="summary-val" id="bmiStatusDisplay" style="font-size: 18px; font-weight: 700;">--</span>
+            </div>
+          </div>
+        </div>
+
         <div class="weight-summary-bar">
           <div class="weight-summary-item">
             <span class="summary-lbl">Current Weight</span>
@@ -126,9 +143,24 @@
         <div class="net-calories-container">
           <span class="net-cal-val" id="netCaloriesDisplay">0</span>
           <span class="net-cal-lbl">Net Calories (Today)</span>
+          
+          <!-- Calorie Target Progress Indicator -->
+          <div class="calorie-progress-wrapper" style="width: 100%; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; color: var(--text-muted);">
+              <span>Progress: <strong id="calorieProgressPct" style="color: #cdd6f4;">0%</strong> of target</span>
+              <span id="calorieProgressStatus" style="font-weight: 600;"></span>
+            </div>
+            <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; position: relative;">
+              <div id="calorieProgressBar" style="width: 0%; height: 100%; background: var(--color-blue); border-radius: 4px; transition: width 0.3s ease;"></div>
+            </div>
+          </div>
         </div>
 
         <div class="calorie-details-grid">
+          <div class="cal-detail-card target-card" style="grid-column: span 2; border-color: rgba(180, 190, 254, 0.25);">
+            <span class="lbl">Daily Calorie Target</span>
+            <span class="val" id="calsTarget" style="font-size: 20px; color: var(--color-blue); text-shadow: 0 0 8px rgba(41, 182, 246, 0.25);">2200 kcal</span>
+          </div>
           <div class="cal-detail-card consumed-card">
             <span class="lbl">Consumed</span>
             <span class="val" id="calsConsumed">0 kcal</span>
@@ -164,7 +196,7 @@
     </section>
 
     <!-- Nutrition Charts Section -->
-    <section class="dashboard-grid nutrition-charts-section" style="margin-top: 20px;">
+    <section class="dashboard-grid nutrition-charts-section" style="margin-top: 20px; grid-template-columns: 1fr 1fr;">
       <!-- Left Panel: Macro History Chart -->
       <div class="panel">
         <div class="panel-header">

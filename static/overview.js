@@ -254,6 +254,67 @@ async function refreshDashboard() {
 
     document.getElementById('currentWeightDisplay').textContent = `${data.current_weight.toFixed(1)} kg`;
 
+    // Calculate and display BMI
+    const bmiValEl = document.getElementById('bmiDisplay');
+    const bmiStatusEl = document.getElementById('bmiStatusDisplay');
+    if (bmiValEl && bmiStatusEl) {
+      const heightCm = data.profile ? parseFloat(data.profile.height_cm) : 0;
+      const weightKg = data.current_weight ? parseFloat(data.current_weight) : 0;
+      if (heightCm > 0 && weightKg > 0) {
+        const bmi = weightKg / ((heightCm / 100.0) ** 2);
+        bmiValEl.textContent = bmi.toFixed(1);
+        
+        let status = 'Normal';
+        let statusColor = '#a6e3a1'; // Catppuccin Green
+        if (bmi < 18.5) {
+          status = 'Underweight';
+          statusColor = '#b4befe'; // Catppuccin Lavender
+        } else if (bmi >= 25 && bmi < 30) {
+          status = 'Overweight';
+          statusColor = '#fab387'; // Catppuccin Peach
+        } else if (bmi >= 30) {
+          status = 'Obese';
+          statusColor = '#f38ba8'; // Catppuccin Red/Pink
+        }
+        bmiStatusEl.textContent = status;
+        bmiStatusEl.style.color = statusColor;
+      } else {
+        bmiValEl.textContent = '--';
+        bmiStatusEl.textContent = '--';
+        bmiStatusEl.style.color = 'inherit';
+      }
+    }
+
+    // Calculate and display calorie target and progress
+    const calorieTarget = calculateTargetCalories(data.profile);
+    const consumedVal = nutrition.calories_consumed || 0.0;
+    
+    const targetEl = document.getElementById('calsTarget');
+    if (targetEl) {
+      targetEl.textContent = `${calorieTarget} kcal`;
+    }
+    
+    const progressPct = Math.min(100, Math.round((consumedVal / calorieTarget) * 100));
+    const progressBar = document.getElementById('calorieProgressBar');
+    const progressPctText = document.getElementById('calorieProgressPct');
+    const progressStatus = document.getElementById('calorieProgressStatus');
+    
+    if (progressBar && progressPctText && progressStatus) {
+      progressBar.style.width = `${progressPct}%`;
+      progressPctText.textContent = `${progressPct}%`;
+      
+      const diff = calorieTarget - consumedVal;
+      if (diff >= 0) {
+        progressBar.style.backgroundColor = 'var(--color-blue)';
+        progressStatus.textContent = `${Math.round(diff)} kcal under target`;
+        progressStatus.style.color = 'var(--color-blue)';
+      } else {
+        progressBar.style.backgroundColor = 'var(--color-orange)';
+        progressStatus.textContent = `${Math.round(Math.abs(diff))} kcal over target`;
+        progressStatus.style.color = 'var(--color-orange)';
+      }
+    }
+
     // Fetch and render nutrition alerts
     try {
       const alertsRes = await fetch('/nutrition/alerts');
@@ -729,40 +790,58 @@ function drawMacrosChart(data) {
     const xCenter = pL + i * spacing + spacing / 2;
     const xLeft = xCenter - barW / 2;
 
+    // Draw faint vertical day gridline
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(xCenter, pT);
+    ctx.lineTo(xCenter, canvas.height - pB);
+    ctx.stroke();
+
     const p = d.protein_g || 0;
     const c = d.carbs_g || 0;
     const f = d.fat_g || 0;
+    const total = p + c + f;
 
-    const hP = (p / maxStacked) * gH;
-    const hC = (c / maxStacked) * gH;
-    const hF = (f / maxStacked) * gH;
+    if (total > 0) {
+      const hP = (p / maxStacked) * gH;
+      const hC = (c / maxStacked) * gH;
+      const hF = (f / maxStacked) * gH;
 
-    // 1. Protein (Blue)
-    const yP = canvas.height - pB - hP;
-    ctx.fillStyle = '#89b4fa';
-    if (hP > 0) ctx.fillRect(xLeft, yP, barW, hP);
+      // 1. Protein (Blue)
+      const yP = canvas.height - pB - hP;
+      ctx.fillStyle = '#89b4fa';
+      if (hP > 0) ctx.fillRect(xLeft, yP, barW, hP);
 
-    // 2. Carbs (Amber/Yellow)
-    const yC = yP - hC;
-    ctx.fillStyle = '#f9e2af';
-    if (hC > 0) ctx.fillRect(xLeft, yC, barW, hC);
+      // 2. Carbs (Amber/Yellow)
+      const yC = yP - hC;
+      ctx.fillStyle = '#f9e2af';
+      if (hC > 0) ctx.fillRect(xLeft, yC, barW, hC);
 
-    // 3. Fat (Peach)
-    const yF = yC - hF;
-    ctx.fillStyle = '#fab387';
-    if (hF > 0) ctx.fillRect(xLeft, yF, barW, hF);
+      // 3. Fat (Peach)
+      const yF = yC - hF;
+      ctx.fillStyle = '#fab387';
+      if (hF > 0) ctx.fillRect(xLeft, yF, barW, hF);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '9px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText(Math.round(total) + 'g', xCenter, yF - 5);
+    } else {
+      // Empty-state handling: subtle placeholder bar and tick
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.fillRect(xLeft, canvas.height - pB - 4, barW, 4);
+      
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.font = '9px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText('-', xCenter, canvas.height - pB - 8);
+    }
 
     // Date label
     ctx.fillStyle = '#aaaaaa'; ctx.font = '9px Inter'; ctx.textAlign = 'center';
     const parts = d.date.split('-');
     ctx.fillText(`${parts[1]}/${parts[2]}`, xCenter, canvas.height - pB + 15);
-
-    // Stack sum total above the bar
-    const total = p + c + f;
-    if (total > 0) {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(Math.round(total) + 'g', xCenter, yF - 5);
-    }
   });
 }
 
@@ -861,17 +940,74 @@ function drawFiberChart(data) {
   });
   ctx.stroke();
 
-  // Draw dots and value labels
+  // Draw vertical gridlines and dots
   points.forEach(p => {
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI); ctx.fill();
-    ctx.strokeStyle = '#f9e2af'; ctx.lineWidth = 1.5; ctx.stroke();
+    // Draw vertical day gridline
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(p.x, pT);
+    ctx.lineTo(p.x, canvas.height - pB);
+    ctx.stroke();
+
+    const isZero = p.val === 0.0;
+    
+    ctx.fillStyle = isZero ? 'rgba(255, 255, 255, 0.1)' : '#ffffff';
+    ctx.beginPath(); ctx.arc(p.x, p.y, isZero ? 2.5 : 4, 0, 2 * Math.PI); ctx.fill();
+    
+    ctx.strokeStyle = isZero ? 'rgba(255, 255, 255, 0.2)' : '#f9e2af';
+    ctx.lineWidth = 1.5; ctx.stroke();
 
     ctx.fillStyle = '#aaaaaa'; ctx.font = '9px Inter'; ctx.textAlign = 'center';
     const parts = p.date.split('-');
     ctx.fillText(`${parts[1]}/${parts[2]}`, p.x, canvas.height - pB + 15);
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(p.val.toFixed(1) + 'g', p.x, p.y - 10);
+    if (!isZero) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(p.val.toFixed(1) + 'g', p.x, p.y - 10);
+    } else {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.fillText('-', p.x, p.y - 8);
+    }
   });
+}
+
+function calculateTargetCalories(profile) {
+  if (!profile || !profile.weight_kg || !profile.height_cm || !profile.age) {
+    return 2000;
+  }
+  const weight = parseFloat(profile.weight_kg);
+  const height = parseFloat(profile.height_cm);
+  const age = parseInt(profile.age);
+  const sex = (profile.sex || "unspecified").toLowerCase();
+  let bmr = 0;
+  if (sex === 'male' || sex === 'm') {
+    bmr = 10 * weight + 6.25 * height - 5 * age + 5;
+  } else if (sex === 'female' || sex === 'f') {
+    bmr = 10 * weight + 6.25 * height - 5 * age - 161;
+  } else {
+    bmr = 10 * weight + 6.25 * height - 5 * age - 78;
+  }
+  let multiplier = 1.375;
+  const freq = (profile.exercise_freq || "").toLowerCase();
+  if (freq.includes("none")) {
+    multiplier = 1.2;
+  } else if (freq.includes("1-2") || freq.includes("1-3")) {
+    multiplier = 1.375;
+  } else if (freq.includes("3-5")) {
+    multiplier = 1.55;
+  } else if (freq.includes("daily") || freq.includes("active")) {
+    multiplier = 1.725;
+  }
+  const bmrActive = bmr * multiplier;
+  const neat = 75;
+  const tdee = (bmrActive + neat) / 0.90;
+  let target = tdee;
+  const goal = (profile.fitness_goal || "").toLowerCase();
+  if (goal.includes("loss") || goal.includes("cut") || goal.includes("reduce") || goal.includes("lean") || goal.includes("weight")) {
+    target = tdee - 500;
+  } else if (goal.includes("gain") || goal.includes("build") || goal.includes("bulk") || goal.includes("muscle")) {
+    target = tdee + 300;
+  }
+  return Math.max(1200, Math.round(target));
 }

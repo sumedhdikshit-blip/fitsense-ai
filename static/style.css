@@ -847,6 +847,8 @@ label {
 .summary-val {
   font-size: 16px;
   font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
 }
 
 /* Calorie Balance Board */
@@ -874,11 +876,13 @@ label {
 }
 
 .net-cal-val.surplus {
-  color: var(--color-orange);
+  color: #ffb74d; /* slightly brighter orange highlight */
+  text-shadow: 0 0 12px rgba(255, 183, 77, 0.35);
 }
 
 .net-cal-val.deficit {
-  color: var(--color-blue);
+  color: #4fc3f7; /* slightly brighter blue highlight */
+  text-shadow: 0 0 12px rgba(79, 195, 247, 0.35);
 }
 
 .net-cal-lbl {
