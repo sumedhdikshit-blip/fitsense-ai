@@ -109,7 +109,7 @@ Computes a dynamic fitness rating (from 1.00 to 10.00, mapped to a letter grade 
 - *Supports dynamic weight redistribution if specific tracking parameters are missing, seamlessly adapting to empty states.*
 
 ### 4. AI Coach Tip
-Integrates with Groq API services (`llama3-8b-8192`) to fetch encouraging, custom, non-generic fitness insights based on:
+Integrates with Groq API services (`llama-3.1-8b-instant`) to fetch encouraging, custom, non-generic fitness insights based on:
 - Recent workout sets, form scores, and durations.
 - Current 30-day weight trends.
 - Active personal records (PRs) achieved.

@@ -163,7 +163,7 @@ def test_ai_connection(user_id: int = Depends(get_current_user_id)):
                     "content": "Say hello in 5 words",
                 }
             ],
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
         )
         reply = chat_completion.choices[0].message.content.strip()
         return {"status": "success", "reply": reply}
@@ -508,7 +508,7 @@ def get_coach_tip(user_id: int = Depends(get_current_user_id)):
                     "content": prompt,
                 }
             ],
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             timeout=5.0,
         )
         reply = chat_completion.choices[0].message.content.strip()
@@ -611,15 +611,26 @@ def get_insights(user_id: int = Depends(get_current_user_id)):
                         "content": custom_prompt,
                     }
                 ],
-                model="llama3-8b-8192",
+                model="llama-3.1-8b-instant",
                 response_format={"type": "json_object"},
                 timeout=5.0,
             )
             return chat_completion.choices[0].message.content.strip()
 
+        def clean_json_text(text: str) -> str:
+            cleaned = text.strip()
+            if cleaned.startswith("```"):
+                lines = cleaned.splitlines()
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                cleaned = "\n".join(lines).strip()
+            return cleaned
+
         try:
             raw_response = run_call(prompt)
-            parsed_json = json.loads(raw_response)
+            parsed_json = json.loads(clean_json_text(raw_response))
         except Exception as e:
             print(f"First attempt to generate insights failed or was invalid JSON: {e}. Retrying once...")
             stricter_prompt = (
@@ -628,7 +639,7 @@ def get_insights(user_id: int = Depends(get_current_user_id)):
             )
             try:
                 raw_response = run_call(stricter_prompt)
-                parsed_json = json.loads(raw_response)
+                parsed_json = json.loads(clean_json_text(raw_response))
             except Exception as retry_err:
                 print(f"Retry attempt to generate insights failed: {retry_err}")
                 return {"error": "Failed to generate structured insights due to LLM parsing error."}
