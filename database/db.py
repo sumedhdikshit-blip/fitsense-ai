@@ -358,7 +358,11 @@ def get_profile(user_id):
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     conn.close()
-    return dict(row) if row else None
+    if row:
+        res = dict(row)
+        res.pop("password_hash", None)
+        return res
+    return None
 
 def save_profile(user_id, name, age, weight, height, sex, fitness_goal, gender=None, diet_quality=None, stress_level=None, sleep_hours=None, smoker=None, exercise_freq=None, alcohol_consumption=None):
     conn = get_connection()

@@ -46,7 +46,10 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
         content={"detail": "Too many requests. Please try again later."}
     )
 
-app.add_middleware(SessionMiddleware, secret_key=os.environ.get("SESSION_SECRET", "dev-only-fallback-key"))
+session_secret = os.environ.get("SESSION_SECRET")
+if not session_secret:
+    raise RuntimeError("SESSION_SECRET environment variable is required")
+app.add_middleware(SessionMiddleware, secret_key=session_secret)
 
 def get_current_user_id(request: Request) -> int:
     user_id = request.session.get("user_id")
@@ -881,6 +884,12 @@ def process_and_draw_frame(detector, counter, frame):
 
 @app.websocket("/ws/workout")
 async def websocket_workout(websocket: WebSocket):
+    user_id = websocket.session.get("user_id")
+    if not user_id:
+        await websocket.accept()
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
     await websocket.accept()
     
     detector = PoseDetector()
