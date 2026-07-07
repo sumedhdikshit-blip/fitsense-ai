@@ -253,6 +253,26 @@ def init_db():
     );
     """)
     
+    # 10. food_database
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS food_database (
+      food_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      serving_description TEXT,
+      calories REAL,
+      protein_g REAL,
+      carbs_g REAL,
+      fat_g REAL,
+      saturated_fat_g REAL,
+      fiber_g REAL,
+      sodium_mg REAL,
+      sugar_g REAL,
+      calcium_mg REAL,
+      iron_mg REAL,
+      vitamin_c_mg REAL
+    );
+    """)
+
     # Check if we have at least one user, insert default Athlete if none
     cursor.execute("SELECT COUNT(*) as count FROM users")
     if cursor.fetchone()["count"] == 0:
