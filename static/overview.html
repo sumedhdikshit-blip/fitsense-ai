@@ -37,6 +37,30 @@
     .search-result-item:last-child {
       border-bottom: none;
     }
+    .nutrition-alert {
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      line-height: 1.4;
+    }
+    .nutrition-alert-fiber {
+      background: rgba(249, 226, 175, 0.1);
+      border: 1px solid rgba(249, 226, 175, 0.3);
+      color: #f9e2af;
+    }
+    .nutrition-alert-protein {
+      background: rgba(166, 227, 161, 0.1);
+      border: 1px solid rgba(166, 227, 161, 0.3);
+      color: #a6e3a1;
+    }
+    .nutrition-alert-saturated_fat {
+      background: rgba(243, 139, 168, 0.1);
+      border: 1px solid rgba(243, 139, 168, 0.3);
+      color: #f38ba8;
+    }
   </style>
 </head>
 <body>
@@ -126,7 +150,10 @@
             <span class="macro-vals-summary">
               P: <strong id="macroProtein">0g</strong> | C: <strong id="macroCarbs">0g</strong> | F: <strong id="macroFat">0g</strong>
             </span>
-          </div>
+        </div>
+        
+        <!-- Nutrition Alerts Container -->
+        <div id="nutritionAlertsContainer" style="margin-top: 15px; display: none; flex-direction: column; gap: 8px;">
         </div>
       </div>
     </section>

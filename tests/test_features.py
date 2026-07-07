@@ -476,3 +476,109 @@ def test_food_search_and_logging():
         except PermissionError:
             pass
 
+def test_nutrition_alerts():
+    """Verify that daily nutrition alerts for low fiber, low protein, and high saturated fat compute correctly."""
+    import tempfile
+    from database import db
+    from fastapi.testclient import TestClient
+    from main import app
+    
+    temp_db_fd, temp_db_path = tempfile.mkstemp()
+    os.close(temp_db_fd)
+    
+    try:
+        original_db_path = db.DB_PATH
+        db.DB_PATH = temp_db_path
+        db.init_db()
+        
+        # 1. Test case with full profile details (75.0 kg, Moderately active -> 1.2 g/kg multiplier)
+        # Seed user profile
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users 
+            SET weight_kg = 75.0, exercise_freq = '3-5 times/week' 
+            WHERE user_id = 1
+        """)
+        conn.commit()
+        conn.close()
+        
+        client = TestClient(app)
+        
+        # Mock auth via dependency override
+        from main import get_current_user_id
+        app.dependency_overrides[get_current_user_id] = lambda: 1
+        
+        # Log food entry producing:
+        # - Low fiber: 10.0g (< 20g)
+        # - Low protein: 45.0g (< target 90.0g)
+        # - High saturated fat: 30.0g (> 25g)
+        log_payload = {
+            "date": "2026-07-07",
+            "calories_consumed": 1500.0,
+            "protein_g": 45.0,
+            "carbs_g": 150.0,
+            "fat_g": 60.0,
+            "saturated_fat_g": 30.0,
+            "fiber_g": 10.0,
+            "sodium_mg": 1000.0,
+            "sugar_g": 40.0,
+            "calcium_mg": 300.0,
+            "iron_mg": 10.0,
+            "vitamin_c_mg": 50.0
+        }
+        resp = client.post("/nutrition/log", json=log_payload)
+        assert resp.status_code == 200
+        
+        # Request alerts
+        resp = client.get("/nutrition/alerts?date=2026-07-07")
+        assert resp.status_code == 200
+        alerts = resp.json()
+        
+        # Expecting all 3 alerts
+        assert len(alerts) == 3
+        alert_types = [a["type"] for a in alerts]
+        assert "fiber" in alert_types
+        assert "protein" in alert_types
+        assert "saturated_fat" in alert_types
+        
+        # Fiber message verification
+        fiber_alert = next(a for a in alerts if a["type"] == "fiber")
+        assert "Fiber intake is low today (10.0g of a general 20g+ guideline)" in fiber_alert["message"]
+        
+        # Protein message verification (target = 75.0 * 1.2 = 90.0g)
+        protein_alert = next(a for a in alerts if a["type"] == "protein")
+        assert "Protein intake is 45.0g, below your target of 90.0g for your activity level (1.2 g/kg" in protein_alert["message"]
+        
+        # Saturated fat message verification
+        sat_alert = next(a for a in alerts if a["type"] == "saturated_fat")
+        assert "Saturated fat intake is 30.0g today, above the general 25g guideline." in sat_alert["message"]
+        
+        # 2. Test graceful handling when profile details are missing
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET exercise_freq = NULL, weight_kg = NULL WHERE user_id = 1")
+        conn.commit()
+        conn.close()
+        
+        resp = client.get("/nutrition/alerts?date=2026-07-07")
+        assert resp.status_code == 200
+        alerts2 = resp.json()
+        
+        # Expecting only 2 alerts now (fiber and saturated fat), protein alert skipped gracefully
+        assert len(alerts2) == 2
+        alert_types2 = [a["type"] for a in alerts2]
+        assert "fiber" in alert_types2
+        assert "saturated_fat" in alert_types2
+        assert "protein" not in alert_types2
+        
+        app.dependency_overrides.clear()
+        
+    finally:
+        db.DB_PATH = original_db_path
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass
+

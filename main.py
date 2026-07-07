@@ -899,6 +899,79 @@ def search_food(q: str = "", user_id: int = Depends(get_current_user_id)):
     conn.close()
     return [dict(r) for r in rows]
 
+@app.get("/nutrition/alerts")
+def get_nutrition_alerts(date: str = None, user_id: int = Depends(get_current_user_id)):
+    if not date:
+        date = datetime.now().strftime("%Y-%m-%d")
+        
+    profile = db.get_profile(user_id)
+    nutrition = db.get_nutrition_data(user_id, date)
+    
+    if not nutrition:
+        # Default empty nutrition values
+        nutrition = {
+            "calories_consumed": 0.0,
+            "protein_g": 0.0,
+            "carbs_g": 0.0,
+            "fat_g": 0.0,
+            "saturated_fat_g": 0.0,
+            "fiber_g": 0.0,
+            "sodium_mg": 0.0,
+            "sugar_g": 0.0,
+            "calcium_mg": 0.0,
+            "iron_mg": 0.0,
+            "vitamin_c_mg": 0.0
+        }
+        
+    alerts = []
+    
+    # 1. Fiber Alert
+    fiber = nutrition.get("fiber_g") or 0.0
+    if fiber < 20.0:
+        alerts.append({
+            "type": "fiber",
+            "message": f"Fiber intake is low today ({fiber:.1f}g of a general 20g+ guideline) — consider adding more vegetables, fruit, or whole grains.",
+            "threshold": 20.0,
+            "current": fiber
+        })
+        
+    # 2. Protein Alert
+    weight = profile.get("weight_kg") if profile else None
+    activity = profile.get("exercise_freq") if profile else None
+    
+    multiplier = None
+    if activity:
+        act_lower = str(activity).lower()
+        if "1-3" in act_lower or "1-2" in act_lower:
+            multiplier = 1.0
+        elif "3-5" in act_lower:
+            multiplier = 1.2
+        elif "daily" in act_lower or "very active" in act_lower:
+            multiplier = 1.5
+            
+    if weight and weight > 0 and multiplier is not None:
+        protein = nutrition.get("protein_g") or 0.0
+        target = round(weight * multiplier, 1)
+        if protein < target:
+            alerts.append({
+                "type": "protein",
+                "message": f"Protein intake is {protein:.1f}g, below your target of {target:.1f}g for your activity level ({multiplier:.1f} g/kg × bodyweight).",
+                "threshold": target,
+                "current": protein
+            })
+            
+    # 3. Saturated Fat Alert
+    sat_fat = nutrition.get("saturated_fat_g") or 0.0
+    if sat_fat > 25.0:
+        alerts.append({
+            "type": "saturated_fat",
+            "message": f"Saturated fat intake is {sat_fat:.1f}g today, above the general 25g guideline.",
+            "threshold": 25.0,
+            "current": sat_fat
+        })
+        
+    return alerts
+
 @app.post("/nutrition/log")
 def log_nutrition_entry(data: models.NutritionLogRequest, user_id: int = Depends(get_current_user_id)):
     db.log_nutrition(
