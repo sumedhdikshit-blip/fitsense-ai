@@ -430,7 +430,8 @@ def get_fitness_score(user_id: int = Depends(get_current_user_id)):
         raise HTTPException(status_code=500, detail=f"Failed to calculate fitness score: {str(e)}")
 
 @app.get("/ai/coach-tip")
-def get_coach_tip(user_id: int = Depends(get_current_user_id)):
+@limiter.limit("5/minute")
+def get_coach_tip(request: Request, user_id: int = Depends(get_current_user_id)):
     from ai.coach_client import get_groq_client
     try:
         sessions = db.get_recent_sessions(user_id, limit=10)
@@ -520,7 +521,8 @@ def get_coach_tip(user_id: int = Depends(get_current_user_id)):
         return {"tip": "Coach tip unavailable right now"}
 
 @app.get("/ai/insights")
-def get_insights(user_id: int = Depends(get_current_user_id)):
+@limiter.limit("3/minute")
+def get_insights(request: Request, user_id: int = Depends(get_current_user_id)):
     import json
     from ai.coach_client import get_groq_client
     try:

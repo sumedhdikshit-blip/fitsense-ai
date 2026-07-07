@@ -9,6 +9,9 @@ import test_coach_tip
 import test_fitness_score
 import test_insights
 
+from main import limiter
+limiter.enabled = False
+
 # Discover and run test functions
 tests_1 = [(test_exercise_and_chart, name) for name in dir(test_exercise_and_chart) if name.startswith("test_")]
 tests_2 = [(test_features, name) for name in dir(test_features) if name.startswith("test_")]

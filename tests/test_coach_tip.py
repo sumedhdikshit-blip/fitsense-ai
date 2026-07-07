@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import db
 from main import get_coach_tip
+from starlette.requests import Request
 
 def test_coach_tip_empty_state():
     """Verify that get_coach_tip returns friendly message when user has no workouts."""
@@ -23,7 +24,8 @@ def test_coach_tip_empty_state():
         uid = db.create_user("coach_test_user_empty", "pass", "Coach Empty")
         
         # Act
-        result = get_coach_tip(user_id=uid)
+        mock_req = Request(scope={"type": "http", "method": "GET", "path": "/ai/coach-tip", "headers": []})
+        result = get_coach_tip(request=mock_req, user_id=uid)
         
         # Assert
         assert result == {"tip": "Log a workout first to get personalized coaching tips"}
@@ -56,7 +58,8 @@ def test_coach_tip_groq_error_graceful():
         
         # Mock get_groq_client to raise exception
         with patch("ai.coach_client.get_groq_client", side_effect=ValueError("Missing API key")):
-            result = get_coach_tip(user_id=uid)
+            mock_req = Request(scope={"type": "http", "method": "GET", "path": "/ai/coach-tip", "headers": []})
+            result = get_coach_tip(request=mock_req, user_id=uid)
             assert result == {"tip": "Coach tip unavailable right now"}
             
     finally:
@@ -101,7 +104,8 @@ def test_coach_tip_success():
         mock_client.chat.completions.create.return_value = mock_completion
         
         with patch("ai.coach_client.get_groq_client", return_value=mock_client):
-            result = get_coach_tip(user_id=uid)
+            mock_req = Request(scope={"type": "http", "method": "GET", "path": "/ai/coach-tip", "headers": []})
+            result = get_coach_tip(request=mock_req, user_id=uid)
             
             # Verify result matches LLM reply
             assert "Great job on your squats!" in result["tip"]

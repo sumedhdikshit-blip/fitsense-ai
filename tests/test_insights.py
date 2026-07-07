@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import db
 from main import get_insights
+from starlette.requests import Request
 
 def test_insights_empty_state():
     """Verify that get_insights returns friendly message when user has no workouts and skips Groq."""
@@ -22,7 +23,8 @@ def test_insights_empty_state():
         uid = db.create_user("insights_empty_user", "pass", "Insights Empty")
         
         with patch("ai.coach_client.get_groq_client") as mock_client:
-            res = get_insights(user_id=uid)
+            mock_req = Request(scope={"type": "http", "method": "GET", "path": "/ai/insights", "headers": []})
+            res = get_insights(request=mock_req, user_id=uid)
             assert "message" in res
             assert res["progress_summary"] == "No workouts logged yet."
             mock_client.assert_not_called()
@@ -70,7 +72,8 @@ def test_insights_success():
         mock_client.chat.completions.create.return_value = mock_completion
         
         with patch("ai.coach_client.get_groq_client", return_value=mock_client):
-            res = get_insights(user_id=uid)
+            mock_req = Request(scope={"type": "http", "method": "GET", "path": "/ai/insights", "headers": []})
+            res = get_insights(request=mock_req, user_id=uid)
             assert res["progress_summary"] == mock_json_response["progress_summary"]
             assert res["tips_to_improve"] == mock_json_response["tips_to_improve"]
             assert res["what_to_avoid"] == mock_json_response["what_to_avoid"]
@@ -130,7 +133,8 @@ def test_insights_malformed_json_retry():
         mock_client.chat.completions.create.side_effect = [mock_completion_fail, mock_completion_success]
         
         with patch("ai.coach_client.get_groq_client", return_value=mock_client):
-            res = get_insights(user_id=uid)
+            mock_req = Request(scope={"type": "http", "method": "GET", "path": "/ai/insights", "headers": []})
+            res = get_insights(request=mock_req, user_id=uid)
             assert res["progress_summary"] == mock_json_response["progress_summary"]
             assert res["tips_to_improve"] == mock_json_response["tips_to_improve"]
             assert mock_client.chat.completions.create.call_count == 2
@@ -161,7 +165,8 @@ def test_insights_api_failure():
         
         # Mock get_groq_client to raise exception
         with patch("ai.coach_client.get_groq_client", side_effect=ValueError("Missing API key")):
-            res = get_insights(user_id=uid)
+            mock_req = Request(scope={"type": "http", "method": "GET", "path": "/ai/insights", "headers": []})
+            res = get_insights(request=mock_req, user_id=uid)
             assert "error" in res
             assert "missing api configuration" in res["error"].lower()
     finally:
