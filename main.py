@@ -1243,11 +1243,11 @@ def risk_estimate(request: Request, data: models.RiskEstimateRequest, user_id: i
     if bmi is None or bmi <= 0.0:
         height_cm = features.get("height_cm")
         weight_kg = features.get("weight_kg")
-        if height_cm is None or height_cm == 0 or weight_kg is None:
+        if height_cm is None or height_cm <= 0 or weight_kg is None:
             bmi = None
         else:
             height_m = height_cm / 100.0
-            if height_m == 0:
+            if height_m <= 0:
                 bmi = None
             else:
                 bmi = weight_kg / (height_m ** 2)

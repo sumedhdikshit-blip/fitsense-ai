@@ -44,11 +44,11 @@ def predict_risk(features_dict: dict) -> dict:
     bmi = float(bmi_val) if bmi_val is not None else None
     
     if bmi is None or bmi <= 0.0:
-        if height_cm == 0.0:
+        if height_cm <= 0.0:
             bmi = None
         else:
             height_m = height_cm / 100.0
-            if height_m == 0.0:
+            if height_m <= 0.0:
                 bmi = None
             else:
                 bmi = weight_kg / (height_m ** 2)
