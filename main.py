@@ -14,6 +14,31 @@ from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime
 from typing import Optional
 import os
+import logging
+from logging.handlers import RotatingFileHandler
+
+# Configure structured logging
+os.makedirs("logs", exist_ok=True)
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(name)s] - %(message)s')
+
+file_handler = RotatingFileHandler("logs/app.log", maxBytes=5 * 1024 * 1024, backupCount=3)
+file_handler.setFormatter(log_formatter)
+file_handler.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+console_handler.setLevel(logging.INFO)
+
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+# Clear any default handlers to avoid double printing
+while root_logger.handlers:
+    root_logger.removeHandler(root_logger.handlers[0])
+root_logger.addHandler(file_handler)
+root_logger.addHandler(console_handler)
+
+logger = logging.getLogger("main")
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -70,7 +95,7 @@ def decode_base64_frame(base64_str: str) -> np.ndarray:
         frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         return frame
     except Exception as e:
-        print(f"Error decoding base64 frame: {e}")
+        logger.error(f"Error decoding base64 frame: {e}", exc_info=True)
         return None
 
 def encode_frame_to_base64(frame: np.ndarray) -> str:
@@ -79,7 +104,7 @@ def encode_frame_to_base64(frame: np.ndarray) -> str:
         base64_str = base64.b64encode(buffer).decode('utf-8')
         return base64_str
     except Exception as e:
-        print(f"Error encoding frame: {e}")
+        logger.error(f"Error encoding frame: {e}", exc_info=True)
         return ""
 
 def calculate_bmr(weight: float, height: float, age: int, sex: str) -> float:
@@ -427,6 +452,7 @@ def get_fitness_score(user_id: int = Depends(get_current_user_id)):
     try:
         return calculate_fitness_score_internal(user_id)
     except Exception as e:
+        logger.error(f"Failed to calculate fitness score: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to calculate fitness score: {str(e)}")
 
 @app.get("/ai/coach-tip")
@@ -436,7 +462,7 @@ def get_coach_tip(request: Request, user_id: int = Depends(get_current_user_id))
     try:
         sessions = db.get_recent_sessions(user_id, limit=10)
     except Exception as e:
-        print(f"Error fetching recent sessions: {e}")
+        logger.error(f"Error fetching recent sessions: {e}", exc_info=True)
         return {"tip": "Coach tip unavailable right now"}
 
     if not sessions:
@@ -517,7 +543,7 @@ def get_coach_tip(request: Request, user_id: int = Depends(get_current_user_id))
             reply = reply[1:-1].strip()
         return {"tip": reply}
     except Exception as e:
-        print(f"Error calling Groq API for coach tip: {e}")
+        logger.error(f"Error calling Groq API for coach tip: {e}", exc_info=True)
         return {"tip": "Coach tip unavailable right now"}
 
 @app.get("/ai/insights")
@@ -528,7 +554,7 @@ def get_insights(request: Request, user_id: int = Depends(get_current_user_id)):
     try:
         sessions = db.get_recent_sessions(user_id, limit=10)
     except Exception as e:
-        print(f"Error fetching recent sessions for insights: {e}")
+        logger.error(f"Error fetching recent sessions for insights: {e}", exc_info=True)
         return {"error": "Insights unavailable right now due to database fetch failure"}
 
     if not sessions:
@@ -634,7 +660,7 @@ def get_insights(request: Request, user_id: int = Depends(get_current_user_id)):
             raw_response = run_call(prompt)
             parsed_json = json.loads(clean_json_text(raw_response))
         except Exception as e:
-            print(f"First attempt to generate insights failed or was invalid JSON: {e}. Retrying once...")
+            logger.warning(f"First attempt to generate insights failed or was invalid JSON: {e}. Retrying once...")
             stricter_prompt = (
                 prompt + "\n\nCRITICAL: You failed to return valid JSON last time. "
                 "You must return ONLY a JSON object containing exactly the five keys. No other text, conversational preamble, or markdown formatting."
@@ -643,7 +669,7 @@ def get_insights(request: Request, user_id: int = Depends(get_current_user_id)):
                 raw_response = run_call(stricter_prompt)
                 parsed_json = json.loads(clean_json_text(raw_response))
             except Exception as retry_err:
-                print(f"Retry attempt to generate insights failed: {retry_err}")
+                logger.error(f"Retry attempt to generate insights failed: {retry_err}", exc_info=True)
                 return {"error": "Failed to generate structured insights due to LLM parsing error."}
 
         required_keys = ["progress_summary", "tips_to_improve", "what_to_avoid", "next_steps", "motivation_note"]
@@ -654,10 +680,10 @@ def get_insights(request: Request, user_id: int = Depends(get_current_user_id)):
         return final_result
 
     except ValueError as val_err:
-        print(f"Configuration error for Groq client: {val_err}")
+        logger.error(f"Configuration error for Groq client: {val_err}")
         return {"error": "Insights unavailable right now due to missing API configuration"}
     except Exception as e:
-        print(f"Error calling Groq API for insights: {e}")
+        logger.error(f"Error calling Groq API for insights: {e}", exc_info=True)
         return {"error": "Insights unavailable right now due to service timeout or connection failure"}
 
 @app.get("/exercises")
@@ -693,6 +719,7 @@ def register_user(data: models.UserRegisterRequest, request: Request):
 def login_user(data: models.UserLoginRequest, request: Request):
     user = db.authenticate_user(data.username, data.password)
     if not user:
+        logger.warning(f"Failed login attempt for username: {data.username}")
         raise HTTPException(status_code=400, detail="Invalid username or password")
     request.session["user_id"] = user["user_id"]
     return {"status": "success", "message": "Logged in successfully", "is_admin": bool(user["is_admin"])}
@@ -1113,7 +1140,7 @@ async def websocket_workout(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        print(f"Exception in WebSocket handler: {e}")
+        logger.error(f"Exception in WebSocket handler: {e}", exc_info=True)
     finally:
         if ping_task:
             ping_task.cancel()
