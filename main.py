@@ -11,6 +11,9 @@ from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime
 from typing import Optional
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -138,6 +141,27 @@ def get_nutrition_breakdown_internal(user_id, date_str, profile):
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+@app.get("/ai/test-connection")
+def test_ai_connection(user_id: int = Depends(get_current_user_id)):
+    from ai.coach_client import get_groq_client
+    try:
+        client = get_groq_client()
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Say hello in 5 words",
+                }
+            ],
+            model="llama3-8b-8192",
+        )
+        reply = chat_completion.choices[0].message.content.strip()
+        return {"status": "success", "reply": reply}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Groq API connection failed: {str(e)}")
 
 @app.get("/exercises")
 def get_exercises():
