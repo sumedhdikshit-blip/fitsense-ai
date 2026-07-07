@@ -275,6 +275,9 @@
           <span>Risk Probability: <strong id="riskProbabilityVal">--%</strong></span>
           <span class="result-badge" id="riskClassBadge">Low Risk</span>
         </div>
+        <div style="margin-top: 10px; margin-bottom: 10px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+          *Indicator is flagged as "Elevated" if risk probability &ge; 10% (a low classification threshold). This label carries minimal actual signal due to near-zero input correlation in the training data.
+        </div>
         <div class="experimental-disclaimer" id="riskConfidenceDisclaimer">
           <!-- Confidence disclaimer text injected dynamically here -->
         </div>

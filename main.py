@@ -496,6 +496,10 @@ def get_coach_tip(user_id: int = Depends(get_current_user_id)):
             f"and refer to something specific from their data rather than generic advice."
         )
 
+        # TRADEOFF: This makes a synchronous, blocking HTTP call to the Groq API.
+        # If the Groq API is slow, the current ASGI worker blocks for up to the timeout.
+        # We clamp the timeout to 5.0 seconds (reduced from 10.0s) as a quick mitigation to fail fast.
+        # An enterprise production fix would run this asynchronously via background task queues.
         client = get_groq_client()
         chat_completion = client.chat.completions.create(
             messages=[
@@ -505,7 +509,7 @@ def get_coach_tip(user_id: int = Depends(get_current_user_id)):
                 }
             ],
             model="llama3-8b-8192",
-            timeout=10.0,
+            timeout=5.0,
         )
         reply = chat_completion.choices[0].message.content.strip()
         if (reply.startswith('"') and reply.endswith('"')) or (reply.startswith("'") and reply.endswith("'")):

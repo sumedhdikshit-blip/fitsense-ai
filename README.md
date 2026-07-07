@@ -79,7 +79,7 @@ fitsense-ai/
    Open your browser and navigate to:
    [http://127.0.0.1:8000](http://127.0.0.1:8000)
 
-   * **Default Athlete Account:** Username: `athlete` / Password: `athlete`
+   * **Default Athlete Account:** Username: `athlete` / Password: `athlete` *(Note: This default account is intended for local testing and development environments only. For any public deployment, change this credential immediately).*
 
 ---
 
@@ -102,16 +102,31 @@ Calculates and details the following metabolic metrics:
 - **TDEE (Total Daily Energy Expenditure)**: BMR scaled by the selected activity multiplier (Sedentary: 1.2, Lightly Active: 1.375, Moderately Active: 1.55, Very Active: 1.725) combined with TEF and NEAT.
 - *Supports relative state retention, allowing users to compare current numbers directly against their previous calculation run.*
 
-### 3. Experimental Chronic Disease Risk Model
+### 3. Daily Fitness Score
+Computes a dynamic fitness rating (from 1.00 to 10.00, mapped to a letter grade from A+ to F) on a daily basis:
+- **82% Weight — Lifestyle Factors**: Evaluates age correctness, stress levels, sleep hygiene, and clinical BMI ranges.
+- **18% Weight — Workout consistency**: Scores consistency (number of sessions in the past 7 days), webcam-tracked form performance, metabolic target calorie alignment, and recent PR set counts.
+- *Supports dynamic weight redistribution if specific tracking parameters are missing, seamlessly adapting to empty states.*
+
+### 4. AI Coach Tip
+Integrates with Groq API services (`llama3-8b-8192`) to fetch encouraging, custom, non-generic fitness insights based on:
+- Recent workout sets, form scores, and durations.
+- Current 30-day weight trends.
+- Active personal records (PRs) achieved.
+- Current Fitness Score and contributing sub-score breakdowns.
+- *Gracefully falls back to localized tips on API key absences, rate limits, or network timeouts.*
+
+### 5. Experimental Chronic Disease Risk Model
 Accessible under the Profile page. Evaluates chronic risk probability using the trained ensemble classifier model.
 - **Exploratory Disclaimer**: The model is based on synthetic dataset training where input lifestyle parameters exhibited low overall target correlation. It is explicitly labeled in the UI as an exploratory, non-diagnostic estimate, accompanied by a prominent warning block.
 
-### 4. Admin Diagnostic Dashboard (`/admin`)
+### 6. Admin Diagnostic Dashboard (`/admin`)
 Provides administrative read-only monitoring:
 - Lists all registered users, total active workout sessions logged, and timestamps of last active session dates.
 
-### 5. Security & API Protections
-- **Authentication**: Stateful sessions verified via cookie-based middleware. Password updates require validation of the user's current password.
+### 7. Security & API Protections
+- **Authentication**: Stateful sessions verified via cookie-based middleware. Registration and password changes enforce an **8-character minimum** password length constraint. Password updates require validation of the user's current password.
+- **WebSocket Protection**: Gated with session checks at handshake. Rejecting unauthenticated socket requests with status `1008` (Policy Violation) protects the media execution pool from resource starvation.
 - **Rate Limiting**: Integrated `slowapi` decorators intercept and throttle requests to prevent brute-force attacks:
   - `POST /api/auth/login` (Max 5 attempts / minute)
   - `POST /api/auth/register` (Max 3 attempts / minute)
