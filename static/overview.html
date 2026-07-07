@@ -364,12 +364,22 @@
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label for="goalTypeSelect">Goal Type</label>
-          <select id="goalTypeSelect" class="form-select">
-            <option value="lose">Weight Loss (Lose Weight)</option>
-            <option value="gain">Weight Gain (Gain Weight)</option>
-            <option value="maintain">Weight Maintenance (Maintain Weight)</option>
-          </select>
+          <label style="display: block; margin-bottom: 8px;">Goal Type</label>
+          <div class="goal-type-selector-group" style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <div class="goal-type-pill active" data-value="lose" onclick="selectGoalTypePill('lose')">
+              <div style="font-size: 1.25rem; margin-bottom: 4px;">📉</div>
+              <div style="font-size: 0.8rem; font-weight: 700;">Lose Weight</div>
+            </div>
+            <div class="goal-type-pill" data-value="gain" onclick="selectGoalTypePill('gain')">
+              <div style="font-size: 1.25rem; margin-bottom: 4px;">📈</div>
+              <div style="font-size: 0.8rem; font-weight: 700;">Gain Weight</div>
+            </div>
+            <div class="goal-type-pill" data-value="maintain" onclick="selectGoalTypePill('maintain')">
+              <div style="font-size: 1.25rem; margin-bottom: 4px;">⚖️</div>
+              <div style="font-size: 0.8rem; font-weight: 700;">Maintain</div>
+            </div>
+          </div>
+          <input type="hidden" id="goalTypeSelect" value="lose">
         </div>
         <div class="form-row">
           <div class="form-group col-6">
@@ -381,10 +391,11 @@
             <input type="number" id="targetWeightInput" step="0.1" min="10" max="500" class="form-input">
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="goalTargetDateGroup">
           <label for="goalTargetDateInput">Target Date (Optional)</label>
           <input type="date" id="goalTargetDateInput" class="form-input">
         </div>
+        <div id="goalValidationError" style="color: #f38ba8; font-size: 0.85rem; margin-top: 10px; display: none; text-align: center; font-weight: 600;"></div>
       </div>
       <div class="modal-footer">
         <button id="saveWeightGoalBtn" class="btn btn-success" onclick="saveWeightGoalForm()">Save Goal</button>

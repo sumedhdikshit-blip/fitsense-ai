@@ -1112,3 +1112,39 @@ label {
   height: 4px;
   background: linear-gradient(90deg, var(--color-blue) 0%, #00e5ff 100%);
 }
+
+.goal-type-pill {
+  flex: 1;
+  text-align: center;
+  padding: 12px 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.goal-type-pill:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.15);
+}
+.goal-type-pill.active {
+  background: rgba(41, 182, 246, 0.1);
+  border-color: var(--color-blue);
+  color: var(--color-blue);
+}
+.goal-type-pill.active[data-value="lose"] {
+  background: rgba(243, 139, 168, 0.1);
+  border-color: #f38ba8;
+  color: #f38ba8;
+}
+.goal-type-pill.active[data-value="gain"] {
+  background: rgba(166, 227, 161, 0.1);
+  border-color: #a6e3a1;
+  color: #a6e3a1;
+}
+.goal-type-pill.active[data-value="maintain"] {
+  background: rgba(180, 190, 254, 0.1);
+  border-color: #b4befe;
+  color: #b4befe;
+}
+

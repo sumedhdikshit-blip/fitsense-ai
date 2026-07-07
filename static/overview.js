@@ -6,6 +6,7 @@ let userGoalType = null;
 let userTargetWeight = null;
 let userStartingWeight = null;
 let userTargetDate = null;
+let currentWeightVal = 75.0;
 
 document.addEventListener('DOMContentLoaded', async () => {
   injectNav('overview');
@@ -257,6 +258,7 @@ async function refreshDashboard() {
     document.getElementById('macroFat').textContent     = `${Math.round(nutrition.fat_g)}g`;
 
     document.getElementById('currentWeightDisplay').textContent = `${data.current_weight.toFixed(1)} kg`;
+    currentWeightVal = data.current_weight ? parseFloat(data.current_weight) : 75.0;
 
     // Calculate and display BMI
     const bmiValEl = document.getElementById('bmiDisplay');
@@ -1216,13 +1218,59 @@ function calculateTargetCalories(profile) {
   return Math.max(1200, Math.round(target));
 }
 
+function selectGoalTypePill(value) {
+  // Update active styling class for target pills
+  const pills = document.querySelectorAll('.goal-type-pill');
+  pills.forEach(pill => {
+    if (pill.getAttribute('data-value') === value) {
+      pill.classList.add('active');
+    } else {
+      pill.classList.remove('active');
+    }
+  });
+
+  // Save the selected goal in hidden input
+  const input = document.getElementById('goalTypeSelect');
+  if (input) {
+    input.value = value;
+  }
+
+  // Show/Hide Target Date field container dynamically
+  const dateGroup = document.getElementById('goalTargetDateGroup');
+  if (dateGroup) {
+    if (value === 'maintain') {
+      dateGroup.style.display = 'none';
+    } else {
+      dateGroup.style.display = 'block';
+    }
+  }
+
+  // Reset any inline validation error messages
+  const errEl = document.getElementById('goalValidationError');
+  if (errEl) {
+    errEl.style.display = 'none';
+    errEl.textContent = '';
+  }
+}
+
 function openWeightGoalModal() {
   const modal = document.getElementById('weightGoalModal');
   if (modal) {
-    document.getElementById('goalTypeSelect').value = userGoalType || 'lose';
-    document.getElementById('startingWeightInput').value = userStartingWeight || '';
+    const defaultGoal = userGoalType || 'lose';
+    document.getElementById('startingWeightInput').value = userStartingWeight || currentWeightVal || '';
     document.getElementById('targetWeightInput').value = userTargetWeight || '';
     document.getElementById('goalTargetDateInput').value = userTargetDate || '';
+
+    // Initialize pill selection and conditional fields visibility
+    selectGoalTypePill(defaultGoal);
+
+    // Clear validation message
+    const errEl = document.getElementById('goalValidationError');
+    if (errEl) {
+      errEl.style.display = 'none';
+      errEl.textContent = '';
+    }
+
     modal.style.display = 'flex';
   }
 }
@@ -1240,8 +1288,44 @@ async function saveWeightGoalForm() {
   const targetWeight = parseFloat(document.getElementById('targetWeightInput').value) || 0.0;
   const targetDate = document.getElementById('goalTargetDateInput').value || null;
 
+  const errEl = document.getElementById('goalValidationError');
+  if (errEl) {
+    errEl.style.display = 'none';
+    errEl.textContent = '';
+  }
+
+  // 1. Validate positive weights
   if (startingWeight <= 0 || targetWeight <= 0) {
-    alert("Please enter valid starting and target weights.");
+    const errMsg = "Please enter valid starting and target weights.";
+    if (errEl) {
+      errEl.textContent = errMsg;
+      errEl.style.display = 'block';
+    } else {
+      alert(errMsg);
+    }
+    return;
+  }
+
+  // 2. Validate directional target weights relative to current weight
+  if (goalType === 'lose' && targetWeight >= currentWeightVal) {
+    const errMsg = `Target weight (${targetWeight.toFixed(1)} kg) must be less than your current weight (${currentWeightVal.toFixed(1)} kg) for a weight loss goal.`;
+    if (errEl) {
+      errEl.textContent = errMsg;
+      errEl.style.display = 'block';
+    } else {
+      alert(errMsg);
+    }
+    return;
+  }
+
+  if (goalType === 'gain' && targetWeight <= currentWeightVal) {
+    const errMsg = `Target weight (${targetWeight.toFixed(1)} kg) must be greater than your current weight (${currentWeightVal.toFixed(1)} kg) for a weight gain goal.`;
+    if (errEl) {
+      errEl.textContent = errMsg;
+      errEl.style.display = 'block';
+    } else {
+      alert(errMsg);
+    }
     return;
   }
 
@@ -1255,7 +1339,7 @@ async function saveWeightGoalForm() {
         goal_type: goalType,
         target_weight_kg: targetWeight,
         starting_weight_kg: startingWeight,
-        target_date: targetDate
+        target_date: goalType === 'maintain' ? null : targetDate
       })
     });
     if (res.ok) {
@@ -1263,10 +1347,22 @@ async function saveWeightGoalForm() {
       await refreshDashboard();
     } else {
       const err = await res.json();
-      alert("Error saving goal: " + (err.detail || "Unknown error"));
+      const errMsg = "Error saving goal: " + (err.detail || "Unknown error");
+      if (errEl) {
+        errEl.textContent = errMsg;
+        errEl.style.display = 'block';
+      } else {
+        alert(errMsg);
+      }
     }
   } catch (e) {
     console.error("Error saving goal:", e);
-    alert("Failed to save goal.");
+    const errMsg = "Failed to save goal due to network or server error.";
+    if (errEl) {
+      errEl.textContent = errMsg;
+      errEl.style.display = 'block';
+    } else {
+      alert(errMsg);
+    }
   }
 }
