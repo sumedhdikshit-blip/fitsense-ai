@@ -205,6 +205,11 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    try:
+        cursor.execute("ALTER TABLE food_database ADD COLUMN meal_category TEXT;")
+    except sqlite3.OperationalError:
+        pass
+
     # 5. recovery_logs
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS recovery_logs (
@@ -305,7 +310,8 @@ def init_db():
       sugar_g REAL,
       calcium_mg REAL,
       iron_mg REAL,
-      vitamin_c_mg REAL
+      vitamin_c_mg REAL,
+      meal_category TEXT
     );
     """)
 
