@@ -163,6 +163,71 @@ def test_ai_connection(user_id: int = Depends(get_current_user_id)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Groq API connection failed: {str(e)}")
 
+@app.get("/ai/coach-tip")
+def get_coach_tip(user_id: int = Depends(get_current_user_id)):
+    from ai.coach_client import get_groq_client
+    try:
+        sessions = db.get_recent_sessions(user_id, limit=10)
+    except Exception as e:
+        print(f"Error fetching recent sessions: {e}")
+        return {"tip": "Coach tip unavailable right now"}
+
+    if not sessions:
+        return {"tip": "Log a workout first to get personalized coaching tips"}
+
+    try:
+        session_summaries = []
+        for s in sessions:
+            ex_done = s.get("exercises_done") or "None"
+            session_summaries.append(
+                f"Date: {s['date']}, Exercises: {ex_done}, Sets: {s['total_sets']}, Reps: {s['total_reps']}, "
+                f"Avg Form Score: {s['avg_form_score']:.1f}%, Calories Burned: {s['total_calories_burned']:.1f} kcal"
+            )
+        sessions_str = "\n".join(session_summaries)
+
+        weight_history = db.get_weight_history(user_id, days=30)
+        weight_trend_str = "No weight entries logged recently."
+        if weight_history:
+            first_w = weight_history[0]["weight_kg"]
+            last_w = weight_history[-1]["weight_kg"]
+            diff = last_w - first_w
+            trend = "losing weight" if diff < 0 else "gaining weight" if diff > 0 else "maintaining weight"
+            weight_trend_str = f"Weight History (last 30 days): starting {first_w:.1f} kg, current {last_w:.1f} kg (trend: {trend} of {abs(diff):.1f} kg)"
+
+        prs = db.get_user_prs(user_id)
+        prs_str = ", ".join([f"{ex}: {val}" for ex, val in prs.items()]) if prs else "No personal records yet."
+
+        summarized_data = (
+            f"Recent sessions:\n{sessions_str}\n\n"
+            f"Weight trend: {weight_trend_str}\n\n"
+            f"Personal Records (PRs): {prs_str}"
+        )
+
+        prompt = (
+            f"Based on this user's recent workout data:\n{summarized_data}\n\n"
+            f"give one specific, encouraging, actionable coaching tip in 2-3 sentences. "
+            f"Reference something specific from their data (an exercise, a trend, a PR) rather than generic advice."
+        )
+
+        client = get_groq_client()
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            model="llama3-8b-8192",
+            timeout=10.0,
+        )
+        reply = chat_completion.choices[0].message.content.strip()
+        if (reply.startswith('"') and reply.endswith('"')) or (reply.startswith("'") and reply.endswith("'")):
+            reply = reply[1:-1].strip()
+        return {"tip": reply}
+    except Exception as e:
+        print(f"Error calling Groq API for coach tip: {e}")
+        return {"tip": "Coach tip unavailable right now"}
+
 @app.get("/exercises")
 def get_exercises():
     return [

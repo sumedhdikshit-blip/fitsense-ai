@@ -681,3 +681,39 @@ def finalize_session(session_id, notes=""):
             return final_session
     finally:
         conn.close()
+
+
+def get_user_prs(user_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Max weight PRs
+    cursor.execute("""
+        SELECT e.exercise_name, MAX(s.weight_kg) as max_weight
+        FROM sets s
+        JOIN exercises e ON s.exercise_id = e.exercise_id
+        JOIN sessions sess ON e.session_id = sess.session_id
+        WHERE sess.user_id = ? AND s.weight_kg > 0
+        GROUP BY e.exercise_name
+    """, (user_id,))
+    weight_rows = cursor.fetchall()
+    
+    # Max reps PRs
+    cursor.execute("""
+        SELECT e.exercise_name, MAX(s.reps_counted) as max_reps
+        FROM sets s
+        JOIN exercises e ON s.exercise_id = e.exercise_id
+        JOIN sessions sess ON e.session_id = sess.session_id
+        WHERE sess.user_id = ? AND s.reps_counted > 0
+        GROUP BY e.exercise_name
+    """, (user_id,))
+    reps_rows = cursor.fetchall()
+    conn.close()
+    
+    prs = {}
+    for row in weight_rows:
+        prs[row["exercise_name"]] = f"{row['max_weight']} kg"
+    for row in reps_rows:
+        ex_name = row["exercise_name"]
+        if ex_name not in prs:
+            prs[ex_name] = f"{row['max_reps']} reps"
+    return prs

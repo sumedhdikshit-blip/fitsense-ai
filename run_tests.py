@@ -5,11 +5,13 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests"))
 import test_exercise_and_chart
 import test_features
+import test_coach_tip
 
 # Discover and run test functions
 tests_1 = [(test_exercise_and_chart, name) for name in dir(test_exercise_and_chart) if name.startswith("test_")]
 tests_2 = [(test_features, name) for name in dir(test_features) if name.startswith("test_")]
-all_tests = sorted(tests_1 + tests_2, key=lambda x: x[1])
+tests_3 = [(test_coach_tip, name) for name in dir(test_coach_tip) if name.startswith("test_")]
+all_tests = sorted(tests_1 + tests_2 + tests_3, key=lambda x: x[1])
 
 passed = 0
 failed = 0

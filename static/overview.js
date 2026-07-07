@@ -116,6 +116,12 @@ function setupEventListeners() {
   overrideCalorieCheckbox.addEventListener('change', (e) => {
     document.getElementById('overrideCalorieGroup').style.display = e.target.checked ? 'flex' : 'none';
   });
+
+  // AI Coach Tip button
+  const getCoachTipBtn = document.getElementById('getCoachTipBtn');
+  if (getCoachTipBtn) {
+    getCoachTipBtn.addEventListener('click', fetchCoachTip);
+  }
 }
 
 async function refreshDashboard() {
@@ -316,4 +322,43 @@ async function saveCardio() {
       await refreshDashboard();
     }
   } catch (e) { console.error('saveCardio error:', e); }
+}
+
+async function fetchCoachTip() {
+  const getCoachTipBtn = document.getElementById('getCoachTipBtn');
+  const loadingEl = document.getElementById('coachTipLoading');
+  const contentEl = document.getElementById('coachTipContent');
+
+  if (!getCoachTipBtn || !loadingEl || !contentEl) return;
+
+  // Show loading state, hide content, disable button
+  loadingEl.style.display = 'flex';
+  contentEl.style.display = 'none';
+  getCoachTipBtn.disabled = true;
+
+  try {
+    const res = await fetch('/ai/coach-tip');
+    if (!res.ok) {
+      throw new Error(`Server returned status ${res.status}`);
+    }
+    const data = await res.json();
+    
+    contentEl.innerHTML = '';
+    const pEl = document.createElement('p');
+    pEl.textContent = data.tip || 'Coach tip unavailable right now';
+    contentEl.appendChild(pEl);
+  } catch (e) {
+    console.error('fetchCoachTip error:', e);
+    contentEl.innerHTML = '';
+    const pEl = document.createElement('p');
+    pEl.className = 'coach-placeholder-text';
+    pEl.style.color = 'var(--color-red)';
+    pEl.textContent = 'Coach tip unavailable right now';
+    contentEl.appendChild(pEl);
+  } finally {
+    // Hide loading state, show content, enable button
+    loadingEl.style.display = 'none';
+    contentEl.style.display = 'block';
+    getCoachTipBtn.disabled = false;
+  }
 }
