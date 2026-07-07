@@ -594,7 +594,9 @@ def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_f
             all_sets = cursor.fetchall()
             total_reps = sum(s["reps_counted"] for s in all_sets)
             total_sets = len(all_sets)
-            avg_score = sum(s["avg_form_score"] for s in all_sets) / total_sets if total_sets > 0 else 0.0
+            
+            valid_form_sets = [s["avg_form_score"] for s in all_sets if s["avg_form_score"] > 0.0]
+            avg_score = sum(valid_form_sets) / len(valid_form_sets) if valid_form_sets else 0.0
             
             cursor.execute("""
                 UPDATE exercises 
@@ -617,7 +619,9 @@ def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_f
                 
             sess_reps = sum(s["reps_counted"] for s in all_session_sets)
             sess_sets = len(all_session_sets)
-            sess_avg_score = sum(s["avg_form_score"] for s in all_session_sets) / sess_sets if sess_sets > 0 else 0.0
+            
+            valid_session_form_sets = [s["avg_form_score"] for s in all_session_sets if s["avg_form_score"] > 0.0]
+            sess_avg_score = sum(valid_session_form_sets) / len(valid_session_form_sets) if valid_session_form_sets else 0.0
             
             cursor.execute("""
                 UPDATE sessions 
@@ -737,6 +741,15 @@ def get_user_prs(user_id):
 
 
 def get_recent_prs_count(user_id, seven_days_ago_str):
+    """
+    Counts the number of newly achieved PRs in the last 7 days.
+    
+    NOTE: If a single exercise breaks both its weight PR and its reps PR, this function
+    will count it as 2 separate PRs. This is acceptable and expected since the primary
+    downstream consumer (the Daily Fitness Score calculation) treats this metric as binary
+    (e.g., scoring 10.0 if pr_count > 0, else 0.0). No other system caller relies on
+    an exact count of unique exercises with PRs.
+    """
     conn = get_connection()
     cursor = conn.cursor()
     

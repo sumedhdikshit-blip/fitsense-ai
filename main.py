@@ -112,20 +112,21 @@ def get_nutrition_breakdown_internal(user_id, date_str, profile):
         bmr = 0.0
         
     conn = db.get_connection()
-    cursor = conn.cursor()
-    
-    # Sum webcam sessions calories on this day
-    cursor.execute("SELECT SUM(total_calories_burned) as cal FROM sessions WHERE user_id = ? AND date = ?", (user_id, date_str))
-    webcam_row = cursor.fetchone()
-    webcam_cals = webcam_row["cal"] if (webcam_row and webcam_row["cal"]) else 0.0
-    
-    # Sum cardio logs calories on this day
-    cursor.execute("SELECT SUM(calories_burned) as cal FROM cardio_logs WHERE user_id = ? AND date = ?", (user_id, date_str))
-    cardio_row = cursor.fetchone()
-    cardio_cals = cardio_row["cal"] if (cardio_row and cardio_row["cal"]) else 0.0
-    
-    conn.close()
-    
+    try:
+        cursor = conn.cursor()
+        
+        # Sum webcam sessions calories on this day
+        cursor.execute("SELECT SUM(total_calories_burned) as cal FROM sessions WHERE user_id = ? AND date = ?", (user_id, date_str))
+        webcam_row = cursor.fetchone()
+        webcam_cals = webcam_row["cal"] if (webcam_row and webcam_row["cal"]) else 0.0
+        
+        # Sum cardio logs calories on this day
+        cursor.execute("SELECT SUM(calories_burned) as cal FROM cardio_logs WHERE user_id = ? AND date = ?", (user_id, date_str))
+        cardio_row = cursor.fetchone()
+        cardio_cals = cardio_row["cal"] if (cardio_row and cardio_row["cal"]) else 0.0
+    finally:
+        conn.close()
+        
     exercise_burn = webcam_cals + cardio_cals
     consumed = nutrition.get("calories_consumed") or 0.0
     tef = consumed * 0.10
@@ -269,79 +270,80 @@ def calculate_fitness_score_internal(user_id: int):
     seven_days_ago_str = seven_days_ago_date.strftime("%Y-%m-%d")
     
     conn = db.get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT COUNT(*) as cnt FROM sessions 
-        WHERE user_id = ? AND date >= ?
-    """, (user_id, seven_days_ago_str))
-    session_count = cursor.fetchone()["cnt"] or 0
-    
-    if session_count == 0:
-        consistency_score = 0.0
-    elif session_count == 1:
-        consistency_score = 4.0
-    elif session_count == 2:
-        consistency_score = 7.0
-    elif session_count == 3:
-        consistency_score = 9.0
-    else:
-        consistency_score = 10.0
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM sessions 
+            WHERE user_id = ? AND date >= ?
+        """, (user_id, seven_days_ago_str))
+        session_count = cursor.fetchone()["cnt"] or 0
         
-    cursor.execute("""
-        SELECT s.avg_form_score
-        FROM sets s
-        JOIN exercises e ON s.exercise_id = e.exercise_id
-        JOIN sessions sess ON e.session_id = sess.session_id
-        WHERE sess.user_id = ? AND sess.date >= ? AND s.avg_form_score > 0
-    """, (user_id, seven_days_ago_str))
-    form_scores = [r["avg_form_score"] for r in cursor.fetchall()]
-    
-    avg_form_score = None
-    if form_scores:
-        avg_form_score = (sum(form_scores) / len(form_scores)) / 10.0
-        
-    goal = (profile.get("fitness_goal") or "").lower()
-    if any(k in goal for k in ["loss", "cut", "deficit", "lean"]):
-        target_balance = -400.0
-    elif any(k in goal for k in ["gain", "bulk", "build", "mass"]):
-        target_balance = 300.0
-    else:
-        target_balance = 0.0
-        
-    daily_balances = []
-    for i in range(7):
-        day_str = (today - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
-        
-        nutrition = db.get_nutrition_data(user_id, day_str)
-        
-        cursor.execute("SELECT SUM(total_calories_burned) as cal FROM sessions WHERE user_id = ? AND date = ?", (user_id, day_str))
-        webcam_row = cursor.fetchone()
-        webcam_cals = webcam_row["cal"] if (webcam_row and webcam_row["cal"]) else 0.0
-        
-        cursor.execute("SELECT SUM(calories_burned) as cal FROM cardio_logs WHERE user_id = ? AND date = ?", (user_id, day_str))
-        cardio_row = cursor.fetchone()
-        cardio_cals = cardio_row["cal"] if (cardio_row and cardio_row["cal"]) else 0.0
-        
-        exercise_burn = webcam_cals + cardio_cals
-        
-        if nutrition or exercise_burn > 0:
-            consumed = nutrition["calories_consumed"] if nutrition else 0.0
-            tef = consumed * 0.10
-            bmr = calculate_bmr(weight, height, age, profile.get("sex", "unspecified"))
-            net_cals = consumed - (exercise_burn + bmr + tef)
+        if session_count == 0:
+            consistency_score = 0.0
+        elif session_count == 1:
+            consistency_score = 4.0
+        elif session_count == 2:
+            consistency_score = 7.0
+        elif session_count == 3:
+            consistency_score = 9.0
+        else:
+            consistency_score = 10.0
             
-            dev = abs(net_cals - target_balance)
-            day_score = max(0.0, 10.0 - (dev / 100.0) * 1.0)
-            daily_balances.append(day_score)
-            
-    calorie_balance_score = None
-    if daily_balances:
-        calorie_balance_score = sum(daily_balances) / len(daily_balances)
+        cursor.execute("""
+            SELECT s.avg_form_score
+            FROM sets s
+            JOIN exercises e ON s.exercise_id = e.exercise_id
+            JOIN sessions sess ON e.session_id = sess.session_id
+            WHERE sess.user_id = ? AND sess.date >= ? AND s.avg_form_score > 0
+        """, (user_id, seven_days_ago_str))
+        form_scores = [r["avg_form_score"] for r in cursor.fetchall()]
         
-    recent_prs = db.get_recent_prs_count(user_id, seven_days_ago_str)
-    pr_progress_score = 10.0 if recent_prs > 0 else 0.0
-    
-    conn.close()
+        avg_form_score = None
+        if form_scores:
+            avg_form_score = (sum(form_scores) / len(form_scores)) / 10.0
+            
+        goal = (profile.get("fitness_goal") or "").lower()
+        if any(k in goal for k in ["loss", "cut", "deficit", "lean"]):
+            target_balance = -400.0
+        elif any(k in goal for k in ["gain", "bulk", "build", "mass"]):
+            target_balance = 300.0
+        else:
+            target_balance = 0.0
+            
+        daily_balances = []
+        for i in range(7):
+            day_str = (today - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
+            
+            nutrition = db.get_nutrition_data(user_id, day_str)
+            
+            cursor.execute("SELECT SUM(total_calories_burned) as cal FROM sessions WHERE user_id = ? AND date = ?", (user_id, day_str))
+            webcam_row = cursor.fetchone()
+            webcam_cals = webcam_row["cal"] if (webcam_row and webcam_row["cal"]) else 0.0
+            
+            cursor.execute("SELECT SUM(calories_burned) as cal FROM cardio_logs WHERE user_id = ? AND date = ?", (user_id, day_str))
+            cardio_row = cursor.fetchone()
+            cardio_cals = cardio_row["cal"] if (cardio_row and cardio_row["cal"]) else 0.0
+            
+            exercise_burn = webcam_cals + cardio_cals
+            
+            if nutrition or exercise_burn > 0:
+                consumed = nutrition["calories_consumed"] if nutrition else 0.0
+                tef = consumed * 0.10
+                bmr = calculate_bmr(weight, height, age, profile.get("sex", "unspecified"))
+                net_cals = consumed - (exercise_burn + bmr + tef)
+                
+                dev = abs(net_cals - target_balance)
+                day_score = max(0.0, 10.0 - (dev / 100.0) * 1.0)
+                daily_balances.append(day_score)
+                
+        calorie_balance_score = None
+        if daily_balances:
+            calorie_balance_score = sum(daily_balances) / len(daily_balances)
+            
+        recent_prs = db.get_recent_prs_count(user_id, seven_days_ago_str)
+        pr_progress_score = 10.0 if recent_prs > 0 else 0.0
+    finally:
+        conn.close()
     
     activity_components = {
         "consistency": round(consistency_score, 2),
