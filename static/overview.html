@@ -163,6 +163,31 @@
       </div>
     </section>
 
+    <!-- Nutrition Charts Section -->
+    <section class="dashboard-grid nutrition-charts-section" style="margin-top: 20px;">
+      <!-- Left Panel: Macro History Chart -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Macro Intake History (Last 7 Days)</h2>
+          <span style="font-size: 0.85rem; color: #a6adc8;">Protein (Blue), Carbs (Amber), Fat (Peach) (g)</span>
+        </div>
+        <div style="padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+          <canvas id="macrosChart" width="550" height="220" style="display: block; width: 100%; height: auto;"></canvas>
+        </div>
+      </div>
+
+      <!-- Right Panel: Fiber History Chart -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Fiber Intake History (Last 7 Days)</h2>
+          <span style="font-size: 0.85rem; color: #a6adc8;">Daily Trend vs. 20g Guideline (Green line)</span>
+        </div>
+        <div style="padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+          <canvas id="fiberChart" width="550" height="220" style="display: block; width: 100%; height: auto;"></canvas>
+        </div>
+      </div>
+    </section>
+
     <!-- Fitness Score Section -->
     <section class="fitness-score-section" style="margin-top: 20px;">
       <div class="panel fitness-score-panel">

@@ -972,6 +972,10 @@ def get_nutrition_alerts(date: str = None, user_id: int = Depends(get_current_us
         
     return alerts
 
+@app.get("/nutrition/history")
+def get_nutrition_history(days: Optional[str] = "7", user_id: int = Depends(get_current_user_id)):
+    return db.get_nutrition_history(user_id=user_id, days=days)
+
 @app.post("/nutrition/log")
 def log_nutrition_entry(data: models.NutritionLogRequest, user_id: int = Depends(get_current_user_id)):
     db.log_nutrition(

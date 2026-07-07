@@ -286,6 +286,7 @@ async function refreshDashboard() {
     }
 
     await fetchWeightHistoryAndDraw();
+    await fetchNutritionHistoryAndDraw();
   } catch (e) {
     console.error('refreshDashboard error:', e);
   }
@@ -649,4 +650,228 @@ async function fetchInsights() {
     loadingEl.style.display = 'none';
     getInsightsBtn.disabled = false;
   }
+}
+
+async function fetchNutritionHistoryAndDraw() {
+  try {
+    const res = await fetch('/nutrition/history?days=7');
+    if (res.ok) {
+      const data = await res.json();
+      drawMacrosChart(data);
+      drawFiberChart(data);
+    }
+  } catch (e) {
+    console.error('fetchNutritionHistoryAndDraw error:', e);
+  }
+}
+
+function drawMacrosChart(data) {
+  const canvas = document.getElementById('macrosChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Prepare last 7 days including empty days
+  const prepData = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const found = data.find(item => item.date === dateStr);
+    if (found) {
+      prepData.push(found);
+    } else {
+      prepData.push({
+        date: dateStr,
+        protein_g: 0.0,
+        carbs_g: 0.0,
+        fat_g: 0.0
+      });
+    }
+  }
+
+  const pL = 45, pR = 20, pT = 25, pB = 35;
+  const gW = canvas.width - pL - pR;
+  const gH = canvas.height - pT - pB;
+
+  // Find max stacked macro height
+  let maxStacked = 0;
+  prepData.forEach(d => {
+    const sum = (d.protein_g || 0) + (d.carbs_g || 0) + (d.fat_g || 0);
+    if (sum > maxStacked) maxStacked = sum;
+  });
+  if (maxStacked < 100) maxStacked = 100; // default minimum ceiling
+  maxStacked = Math.ceil(maxStacked / 20) * 20; // round up to multiple of 20
+
+  // Draw axis lines
+  ctx.strokeStyle = '#2c2c2c'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pL, pT);
+  ctx.lineTo(pL, canvas.height - pB);
+  ctx.lineTo(canvas.width - pR, canvas.height - pB);
+  ctx.stroke();
+
+  // Y-axis labels and grid lines
+  ctx.fillStyle = '#aaaaaa'; ctx.font = '10px Inter';
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 4; i++) {
+    const yVal = (maxStacked * i) / 4;
+    const yPos = canvas.height - pB - (i / 4) * gH;
+    ctx.strokeStyle = '#1f1f1f';
+    ctx.beginPath(); ctx.moveTo(pL, yPos); ctx.lineTo(canvas.width - pR, yPos); ctx.stroke();
+    ctx.fillText(Math.round(yVal) + 'g', pL - 8, yPos);
+  }
+
+  const spacing = gW / 7;
+  const barW = spacing * 0.6;
+
+  prepData.forEach((d, i) => {
+    const xCenter = pL + i * spacing + spacing / 2;
+    const xLeft = xCenter - barW / 2;
+
+    const p = d.protein_g || 0;
+    const c = d.carbs_g || 0;
+    const f = d.fat_g || 0;
+
+    const hP = (p / maxStacked) * gH;
+    const hC = (c / maxStacked) * gH;
+    const hF = (f / maxStacked) * gH;
+
+    // 1. Protein (Blue)
+    const yP = canvas.height - pB - hP;
+    ctx.fillStyle = '#89b4fa';
+    if (hP > 0) ctx.fillRect(xLeft, yP, barW, hP);
+
+    // 2. Carbs (Amber/Yellow)
+    const yC = yP - hC;
+    ctx.fillStyle = '#f9e2af';
+    if (hC > 0) ctx.fillRect(xLeft, yC, barW, hC);
+
+    // 3. Fat (Peach)
+    const yF = yC - hF;
+    ctx.fillStyle = '#fab387';
+    if (hF > 0) ctx.fillRect(xLeft, yF, barW, hF);
+
+    // Date label
+    ctx.fillStyle = '#aaaaaa'; ctx.font = '9px Inter'; ctx.textAlign = 'center';
+    const parts = d.date.split('-');
+    ctx.fillText(`${parts[1]}/${parts[2]}`, xCenter, canvas.height - pB + 15);
+
+    // Stack sum total above the bar
+    const total = p + c + f;
+    if (total > 0) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(Math.round(total) + 'g', xCenter, yF - 5);
+    }
+  });
+}
+
+function drawFiberChart(data) {
+  const canvas = document.getElementById('fiberChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Prepare last 7 days including empty days
+  const prepData = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const found = data.find(item => item.date === dateStr);
+    if (found) {
+      prepData.push(found);
+    } else {
+      prepData.push({
+        date: dateStr,
+        fiber_g: 0.0
+      });
+    }
+  }
+
+  const pL = 45, pR = 20, pT = 25, pB = 35;
+  const gW = canvas.width - pL - pR;
+  const gH = canvas.height - pT - pB;
+
+  // Find max fiber height
+  let maxFiber = 0;
+  prepData.forEach(d => {
+    if (d.fiber_g > maxFiber) maxFiber = d.fiber_g;
+  });
+  if (maxFiber < 30) maxFiber = 30; // default minimum ceiling to display 20g target clearly
+  maxFiber = Math.ceil(maxFiber / 10) * 10;
+
+  // Draw axis lines
+  ctx.strokeStyle = '#2c2c2c'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pL, pT);
+  ctx.lineTo(pL, canvas.height - pB);
+  ctx.lineTo(canvas.width - pR, canvas.height - pB);
+  ctx.stroke();
+
+  // Y-axis labels and grid lines
+  ctx.fillStyle = '#aaaaaa'; ctx.font = '10px Inter';
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 4; i++) {
+    const yVal = (maxFiber * i) / 4;
+    const yPos = canvas.height - pB - (i / 4) * gH;
+    ctx.strokeStyle = '#1f1f1f';
+    ctx.beginPath(); ctx.moveTo(pL, yPos); ctx.lineTo(canvas.width - pR, yPos); ctx.stroke();
+    ctx.fillText(Math.round(yVal) + 'g', pL - 8, yPos);
+  }
+
+  // Draw 20g Guideline (Green dashed line)
+  const yGuide = canvas.height - pB - (20.0 / maxFiber) * gH;
+  ctx.strokeStyle = 'rgba(166, 227, 161, 0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(pL, yGuide);
+  ctx.lineTo(canvas.width - pR, yGuide);
+  ctx.stroke();
+  ctx.setLineDash([]); // reset dash
+
+  ctx.fillStyle = '#a6e3a1'; ctx.font = '9px Inter'; ctx.textAlign = 'left';
+  ctx.fillText('20g guideline', pL + 5, yGuide - 4);
+
+  const spacing = gW / 7;
+  const points = prepData.map((d, idx) => ({
+    x: pL + idx * spacing + spacing / 2,
+    y: canvas.height - pB - ((d.fiber_g || 0.0) / maxFiber) * gH,
+    date: d.date,
+    val: d.fiber_g || 0.0
+  }));
+
+  // Fill area under trend line
+  if (points.length > 1) {
+    ctx.fillStyle = 'rgba(249, 226, 175, 0.07)';
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, canvas.height - pB);
+    points.forEach(p => ctx.lineTo(p.x, p.y));
+    ctx.lineTo(points[points.length - 1].x, canvas.height - pB);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Draw trend line
+  ctx.strokeStyle = '#f9e2af'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  points.forEach((p, i) => {
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  });
+  ctx.stroke();
+
+  // Draw dots and value labels
+  points.forEach(p => {
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = '#f9e2af'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    ctx.fillStyle = '#aaaaaa'; ctx.font = '9px Inter'; ctx.textAlign = 'center';
+    const parts = p.date.split('-');
+    ctx.fillText(`${parts[1]}/${parts[2]}`, p.x, canvas.height - pB + 15);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(p.val.toFixed(1) + 'g', p.x, p.y - 10);
+  });
 }

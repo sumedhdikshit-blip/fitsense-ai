@@ -566,6 +566,27 @@ def get_nutrition_data(user_id, date):
     conn.close()
     return dict(row) if row else None
 
+def get_nutrition_history(user_id, days=7):
+    conn = get_connection()
+    cursor = conn.cursor()
+    if days == "all" or days is None:
+        cursor.execute("""
+            SELECT date, calories_consumed, protein_g, carbs_g, fat_g, fiber_g, saturated_fat_g 
+            FROM daily_nutrition 
+            WHERE user_id = ? 
+            ORDER BY date ASC
+        """, (user_id,))
+    else:
+        cursor.execute("""
+            SELECT date, calories_consumed, protein_g, carbs_g, fat_g, fiber_g, saturated_fat_g 
+            WHERE user_id = ? AND date >= date('now', '-' || ? || ' days')
+            ORDER BY date ASC
+        """, (user_id, int(days)))
+        
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 # Workout sessions
 
 def get_recent_sessions(user_id, limit=10):
