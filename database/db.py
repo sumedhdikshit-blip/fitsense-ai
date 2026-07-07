@@ -421,11 +421,16 @@ def log_weight(user_id, date, weight_kg):
         ON CONFLICT(user_id, date) DO UPDATE SET weight_kg = excluded.weight_kg
     """, (user_id, date, weight_kg))
     
-    # Update profile weight to match the latest logged weight
-    cursor.execute("SELECT date FROM weight_history WHERE user_id = ? ORDER BY date DESC LIMIT 1", (user_id,))
-    latest_date_row = cursor.fetchone()
-    if latest_date_row and latest_date_row["date"] == date:
-        cursor.execute("UPDATE users SET weight_kg = ? WHERE user_id = ?", (weight_kg, user_id))
+    # Update profile weight to match the entry with the most recent date that is NOT after today
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    cursor.execute("""
+        SELECT weight_kg FROM weight_history
+        WHERE user_id = ? AND date <= ?
+        ORDER BY date DESC LIMIT 1
+    """, (user_id, today_str))
+    latest_valid_row = cursor.fetchone()
+    if latest_valid_row:
+        cursor.execute("UPDATE users SET weight_kg = ? WHERE user_id = ?", (latest_valid_row["weight_kg"], user_id))
         
     conn.commit()
     conn.close()
@@ -467,7 +472,10 @@ def log_nutrition(user_id, date, calories_consumed, protein, carbs, fat):
     if row:
         cursor.execute("""
             UPDATE daily_nutrition
-            SET calories_consumed = ?, protein_g = ?, carbs_g = ?, fat_g = ?
+            SET calories_consumed = calories_consumed + ?,
+                protein_g = protein_g + ?,
+                carbs_g = carbs_g + ?,
+                fat_g = fat_g + ?
             WHERE entry_id = ?
         """, (calories_consumed, protein, carbs, fat, row["entry_id"]))
     else:
@@ -719,11 +727,12 @@ def get_user_prs(user_id):
     
     prs = {}
     for row in weight_rows:
-        prs[row["exercise_name"]] = f"{row['max_weight']} kg"
+        prs[row["exercise_name"]] = {"weight": f"{row['max_weight']} kg"}
     for row in reps_rows:
         ex_name = row["exercise_name"]
         if ex_name not in prs:
-            prs[ex_name] = f"{row['max_reps']} reps"
+            prs[ex_name] = {}
+        prs[ex_name]["reps"] = f"{row['max_reps']} reps"
     return prs
 
 

@@ -470,7 +470,15 @@ def get_coach_tip(user_id: int = Depends(get_current_user_id)):
             weight_trend_str = f"Weight History (last 30 days): starting {first_w:.1f} kg, current {last_w:.1f} kg (trend: {trend} of {abs(diff):.1f} kg)"
 
         prs = db.get_user_prs(user_id)
-        prs_str = ", ".join([f"{ex}: {val}" for ex, val in prs.items()]) if prs else "No personal records yet."
+        prs_str_list = []
+        for ex, pr_info in prs.items():
+            details = []
+            if "weight" in pr_info:
+                details.append(pr_info["weight"])
+            if "reps" in pr_info:
+                details.append(pr_info["reps"])
+            prs_str_list.append(f"{ex} ({' / '.join(details)})")
+        prs_str = ", ".join(prs_str_list) if prs_str_list else "No personal records yet."
 
         summarized_data = (
             f"User Fitness Score Details:\n{fit_score_str}\n\n"
