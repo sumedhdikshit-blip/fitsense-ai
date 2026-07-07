@@ -619,8 +619,9 @@ def end_session(data: models.SessionEndRequest, user_id: int = Depends(get_curre
     return summary
 
 @app.get("/sessions/recent")
-def get_recent_sessions(user_id: int = Depends(get_current_user_id)):
-    return db.get_recent_sessions(user_id)
+def get_recent_sessions(limit: int = 10, user_id: int = Depends(get_current_user_id)):
+    clamped_limit = min(50, max(1, limit))
+    return db.get_recent_sessions(user_id, limit=clamped_limit)
 
 @app.get("/sessions/{session_id}")
 def get_session(session_id: int, user_id: int = Depends(get_current_user_id)):

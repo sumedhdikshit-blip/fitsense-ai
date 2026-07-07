@@ -11,12 +11,12 @@ class SetLogRequest(BaseModel):
     rpe: int = Field(..., ge=1, le=10)
     avg_form_score: Optional[float] = 0.0   # 0.0 for manual entries (no camera data)
     pain_flag: bool = False
-    pain_location: Optional[str] = ""
+    pain_location: Optional[str] = Field("", max_length=100)
     duration_seconds: float = 0.0
 
 class SessionEndRequest(BaseModel):
     session_id: int
-    notes: Optional[str] = ""
+    notes: Optional[str] = Field("", max_length=500)
 
 class ProfileRequest(BaseModel):
     name: str
@@ -39,7 +39,7 @@ class WeightLogRequest(BaseModel):
 
 class CardioLogRequest(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")  # YYYY-MM-DD
-    activity_name: str
+    activity_name: str = Field(..., max_length=100)
     duration_mins: float = Field(0.0, ge=0)
     calories_burned: float = Field(..., ge=0)
     entry_method: str = Field(..., pattern="^(duration|direct_calories)$")
@@ -53,7 +53,7 @@ class NutritionLogRequest(BaseModel):
 
 class UserRegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=4)
+    password: str = Field(..., min_length=8)
     name: str = Field(..., min_length=1, max_length=100)
 
 class UserLoginRequest(BaseModel):
