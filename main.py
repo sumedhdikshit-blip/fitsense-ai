@@ -484,6 +484,12 @@ def get_coach_tip(request: Request, user_id: int = Depends(get_current_user_id))
                 goal_str += f" (starting weight: {profile['starting_weight_kg']} kg)"
             if profile.get("target_date"):
                 goal_str += f", target date: {profile['target_date']}"
+            if profile.get("pace"):
+                goal_str += f", pace: {profile['pace']} rate"
+            if profile.get("muscle_focus"):
+                goal_str += f", muscle preservation/focus preference: {profile['muscle_focus']}"
+            if profile.get("maintenance_focus"):
+                goal_str += f", maintenance focus: {profile['maintenance_focus']}"
 
         # Fetch user Fitness Score
         fit_score = calculate_fitness_score_internal(user_id)
@@ -594,6 +600,12 @@ def get_insights(request: Request, user_id: int = Depends(get_current_user_id)):
                 goal_str += f" (starting weight: {profile['starting_weight_kg']} kg)"
             if profile.get("target_date"):
                 goal_str += f", target date: {profile['target_date']}"
+            if profile.get("pace"):
+                goal_str += f", pace: {profile['pace']} rate"
+            if profile.get("muscle_focus"):
+                goal_str += f", muscle preservation/focus preference: {profile['muscle_focus']}"
+            if profile.get("maintenance_focus"):
+                goal_str += f", maintenance focus: {profile['maintenance_focus']}"
 
         # Fetch user Fitness Score
         fit_score = calculate_fitness_score_internal(user_id)
@@ -860,12 +872,31 @@ def update_profile(data: models.ProfileRequest, user_id: int = Depends(get_curre
 
 @app.post("/profile/weight-goal")
 def update_weight_goal(data: models.WeightGoalRequest, user_id: int = Depends(get_current_user_id)):
+    goal_type = data.goal_type
+    pace = data.pace if data.pace else None
+    muscle_focus = data.muscle_focus if data.muscle_focus else None
+    maintenance_focus = data.maintenance_focus if data.maintenance_focus else None
+    target_date = data.target_date if data.target_date else None
+
+    # Enforce sub-options constraints based on goal type selection
+    if goal_type == 'maintain':
+        pace = None
+        muscle_focus = None
+        target_date = None
+    elif goal_type == 'lose':
+        maintenance_focus = None
+    elif goal_type == 'gain':
+        maintenance_focus = None
+
     db.save_weight_goal(
         user_id=user_id,
-        goal_type=data.goal_type,
+        goal_type=goal_type,
         target_weight_kg=data.target_weight_kg,
         starting_weight_kg=data.starting_weight_kg,
-        target_date=data.target_date
+        target_date=target_date,
+        pace=pace,
+        muscle_focus=muscle_focus,
+        maintenance_focus=maintenance_focus
     )
     return {"status": "success", "message": "Weight goal updated successfully"}
 

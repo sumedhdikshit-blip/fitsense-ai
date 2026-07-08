@@ -7,6 +7,7 @@ let userTargetWeight = null;
 let userStartingWeight = null;
 let userTargetDate = null;
 let currentWeightVal = 75.0;
+let userProfile = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
   injectNav('overview');
@@ -330,34 +331,49 @@ async function refreshDashboard() {
     // Calculate and display calorie target and progress
     const calorieTarget = calculateTargetCalories(data.profile);
     const consumedVal = nutrition.calories_consumed || 0.0;
-    
     const targetEl = document.getElementById('calsTarget');
-    if (targetEl) {
-      targetEl.textContent = `${calorieTarget} kcal`;
-    }
-    
-    const progressPct = Math.min(100, Math.round((consumedVal / calorieTarget) * 100));
     const progressBar = document.getElementById('calorieProgressBar');
     const progressPctText = document.getElementById('calorieProgressPct');
     const progressStatus = document.getElementById('calorieProgressStatus');
-    
-    if (progressBar && progressPctText && progressStatus) {
-      progressBar.style.width = `${progressPct}%`;
-      progressPctText.textContent = `${progressPct}%`;
+
+    if (calorieTarget === null) {
+      if (targetEl) {
+        targetEl.textContent = 'Setup Profile';
+        targetEl.style.fontSize = '0.75rem';
+        targetEl.style.color = '#f38ba8';
+      }
+      if (progressBar && progressPctText && progressStatus) {
+        progressBar.style.width = `0%`;
+        progressPctText.textContent = `0%`;
+        progressStatus.innerHTML = '<span style="color:#f38ba8; font-weight:600;">Please <a href="/profile-page" style="color:#f38ba8; text-decoration:underline;">complete your profile</a> first.</span>';
+      }
+    } else {
+      if (targetEl) {
+        targetEl.textContent = `${calorieTarget} kcal`;
+        targetEl.style.fontSize = '';
+        targetEl.style.color = '';
+      }
       
-      const diff = calorieTarget - consumedVal;
-      if (diff >= 0) {
-        progressBar.style.backgroundColor = 'var(--color-blue)';
-        progressStatus.textContent = `${Math.round(diff)} kcal under target`;
-        progressStatus.style.color = 'var(--color-blue)';
-      } else {
-        progressBar.style.backgroundColor = 'var(--color-orange)';
-        progressStatus.textContent = `${Math.round(Math.abs(diff))} kcal over target`;
-        progressStatus.style.color = 'var(--color-orange)';
+      const progressPct = Math.min(100, Math.round((consumedVal / calorieTarget) * 100));
+      if (progressBar && progressPctText && progressStatus) {
+        progressBar.style.width = `${progressPct}%`;
+        progressPctText.textContent = `${progressPct}%`;
+        
+        const diff = calorieTarget - consumedVal;
+        if (diff >= 0) {
+          progressBar.style.backgroundColor = 'var(--color-blue)';
+          progressStatus.textContent = `${Math.round(diff)} kcal under target`;
+          progressStatus.style.color = 'var(--color-blue)';
+        } else {
+          progressBar.style.backgroundColor = 'var(--color-orange)';
+          progressStatus.textContent = `${Math.round(Math.abs(diff))} kcal over target`;
+          progressStatus.style.color = 'var(--color-orange)';
+        }
       }
     }
 
     // Set global goal values
+    userProfile = data.profile;
     userGoalType = data.profile ? data.profile.goal_type : null;
     userTargetWeight = data.profile && data.profile.target_weight_kg ? parseFloat(data.profile.target_weight_kg) : null;
     userStartingWeight = data.profile && data.profile.starting_weight_kg ? parseFloat(data.profile.starting_weight_kg) : null;
@@ -406,6 +422,42 @@ async function refreshDashboard() {
           remainingEl.textContent = 'On track';
         } else {
           remainingEl.textContent = `${remaining.toFixed(1)} kg to go`;
+        }
+
+        // Show pace and timeline details clearly on the goal card
+        const paceEl = document.getElementById('goalPaceText');
+        const statusEl = document.getElementById('goalScheduleStatus');
+
+        if (userGoalType === 'maintain') {
+          const focusStr = (data.profile.maintenance_focus === 'build_muscle') ? 'Build Muscle (Recomp)' : 'Stay Fit';
+          if (paceEl) paceEl.textContent = `Focus: ${focusStr}`;
+          if (statusEl) {
+            statusEl.textContent = `Target Band: ${(userTargetWeight - 1.5).toFixed(1)} - ${(userTargetWeight + 1.5).toFixed(1)} kg`;
+            statusEl.style.color = '#b4befe';
+          }
+        } else {
+          const paceVal = data.profile.pace || 'normal';
+          let pacePct = 0.005;
+          if (paceVal === 'mild') pacePct = 0.0025;
+          else if (paceVal === 'aggressive') pacePct = 0.01;
+
+          const baseWeight = userStartingWeight || currentW;
+          const weeklyRate = baseWeight * pacePct;
+          const estimatedWeeks = weeklyRate > 0 ? remaining / weeklyRate : 0;
+          const musclePreserve = data.profile.muscle_focus === 'preserve' ? ' [muscle preservation]' : '';
+
+          if (paceEl) {
+            paceEl.textContent = `Rate: ${weeklyRate.toFixed(2)} kg/wk (${paceVal}${musclePreserve})`;
+          }
+          if (statusEl) {
+            if (userTargetDate) {
+              const tDate = new Date(userTargetDate);
+              statusEl.textContent = `Est. Target Date: ${tDate.toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})} (~${Math.ceil(estimatedWeeks)} wk remaining)`;
+            } else {
+              statusEl.textContent = `Estimated Duration: ~${Math.ceil(estimatedWeeks)} weeks`;
+            }
+            statusEl.style.color = userGoalType === 'lose' ? '#f38ba8' : '#a6e3a1';
+          }
         }
         
         // Progress percentage calculation
@@ -462,6 +514,7 @@ async function refreshDashboard() {
 
     await fetchWeightHistoryAndDraw();
     await fetchNutritionHistoryAndDraw();
+    await checkWeeklyWeighIn(data.profile, data.current_weight);
   } catch (e) {
     console.error('refreshDashboard error:', e);
   }
@@ -1216,12 +1269,13 @@ function drawFiberChart(data) {
 
 function calculateTargetCalories(profile) {
   if (!profile || !profile.weight_kg || !profile.height_cm || !profile.age) {
-    return 2000;
+    return null; // Return null to indicate incomplete profile
   }
   const weight = parseFloat(profile.weight_kg);
   const height = parseFloat(profile.height_cm);
   const age = parseInt(profile.age);
   const sex = (profile.sex || "unspecified").toLowerCase();
+  
   let bmr = 0;
   if (sex === 'male' || sex === 'm') {
     bmr = 10 * weight + 6.25 * height - 5 * age + 5;
@@ -1230,6 +1284,7 @@ function calculateTargetCalories(profile) {
   } else {
     bmr = 10 * weight + 6.25 * height - 5 * age - 78;
   }
+  
   let multiplier = 1.375;
   const freq = (profile.exercise_freq || "").toLowerCase();
   if (freq.includes("none")) {
@@ -1241,21 +1296,36 @@ function calculateTargetCalories(profile) {
   } else if (freq.includes("daily") || freq.includes("active")) {
     multiplier = 1.725;
   }
+  
   const bmrActive = bmr * multiplier;
   const neat = 75;
   const tdee = (bmrActive + neat) / 0.90;
-  let target = tdee;
-  const goal = (profile.fitness_goal || "").toLowerCase();
-  if (goal.includes("loss") || goal.includes("cut") || goal.includes("reduce") || goal.includes("lean") || goal.includes("weight")) {
-    target = tdee - 500;
-  } else if (goal.includes("gain") || goal.includes("build") || goal.includes("bulk") || goal.includes("muscle")) {
-    target = tdee + 300;
+  
+  const goalType = profile.goal_type;
+  if (!goalType || goalType === 'maintain') {
+    return Math.max(1200, Math.round(tdee));
   }
+
+  // Get pace percentage for calculations
+  const paceVal = profile.pace || 'normal';
+  let pacePct = 0.005;
+  if (paceVal === 'mild') pacePct = 0.0025;
+  else if (paceVal === 'aggressive') pacePct = 0.01;
+
+  const weeklyRate = weight * pacePct;
+  const dailyAdjustment = (weeklyRate * 7700) / 7;
+
+  let target = tdee;
+  if (goalType === 'lose') {
+    target = tdee - dailyAdjustment;
+  } else if (goalType === 'gain') {
+    target = tdee + dailyAdjustment;
+  }
+
   return Math.max(1200, Math.round(target));
 }
 
 function selectGoalTypePill(value) {
-  // Update active styling class for target pills
   const pills = document.querySelectorAll('.goal-type-pill');
   pills.forEach(pill => {
     if (pill.getAttribute('data-value') === value) {
@@ -1265,29 +1335,105 @@ function selectGoalTypePill(value) {
     }
   });
 
-  // Save the selected goal in hidden input
   const input = document.getElementById('goalTypeSelect');
   if (input) {
     input.value = value;
   }
 
-  // Show/Hide Target Date field container dynamically
+  // Toggle sub-options containers based on selection
+  const loseGroup = document.getElementById('subLoseGroup');
+  const gainGroup = document.getElementById('subGainGroup');
+  const maintainGroup = document.getElementById('subMaintainGroup');
+  
+  if (loseGroup) loseGroup.style.display = value === 'lose' ? 'block' : 'none';
+  if (gainGroup) gainGroup.style.display = value === 'gain' ? 'block' : 'none';
+  if (maintainGroup) maintainGroup.style.display = value === 'maintain' ? 'block' : 'none';
+
+  // Toggle Target Date group (always hidden for maintenance)
   const dateGroup = document.getElementById('goalTargetDateGroup');
   if (dateGroup) {
-    if (value === 'maintain') {
-      dateGroup.style.display = 'none';
-    } else {
-      dateGroup.style.display = 'block';
-    }
+    dateGroup.style.display = value === 'maintain' ? 'none' : 'block';
   }
 
-  // Reset any inline validation error messages
   const errEl = document.getElementById('goalValidationError');
   if (errEl) {
     errEl.style.display = 'none';
     errEl.textContent = '';
   }
+
+  // Update real-time Rate / Completion projections
+  updateGoalTimelineProjection();
 }
+
+function selectGoalSubOption(type, value) {
+  const pills = document.querySelectorAll(`.goal-sub-pill[data-type="${type}"]`);
+  pills.forEach(pill => {
+    if (pill.getAttribute('data-value') === value) {
+      pill.classList.add('active');
+    } else {
+      pill.classList.remove('active');
+    }
+  });
+
+  let inputId = '';
+  if (type === 'pace') inputId = 'goalPaceInput';
+  else if (type === 'muscle') inputId = 'goalMuscleInput';
+  else if (type === 'pace_gain') inputId = 'goalPaceGainInput';
+  else if (type === 'muscle_gain') inputId = 'goalMuscleGainInput';
+  else if (type === 'maintain_focus') inputId = 'goalMaintainFocusInput';
+
+  const input = document.getElementById(inputId);
+  if (input) {
+    input.value = value;
+  }
+
+  updateGoalTimelineProjection();
+}
+window.selectGoalSubOption = selectGoalSubOption;
+
+function updateGoalTimelineProjection() {
+  const goalType = document.getElementById('goalTypeSelect').value;
+  const startW = parseFloat(document.getElementById('startingWeightInput').value) || 0;
+  const targetW = parseFloat(document.getElementById('targetWeightInput').value) || 0;
+
+  const projBlock = document.getElementById('goalProjectionBlock');
+  if (!projBlock) return;
+
+  if (goalType === 'maintain' || startW <= 0 || targetW <= 0) {
+    projBlock.style.display = 'none';
+    document.getElementById('goalTargetDateInput').value = '';
+    return;
+  }
+
+  let paceVal = '';
+  if (goalType === 'lose') {
+    paceVal = document.getElementById('goalPaceInput').value;
+  } else {
+    paceVal = document.getElementById('goalPaceGainInput').value;
+  }
+
+  let pacePct = 0.005;
+  if (paceVal === 'mild') pacePct = 0.0025;
+  else if (paceVal === 'aggressive') pacePct = 0.01;
+
+  // Compute pace against currentWeightVal (or starting weight if not set yet)
+  const baseWeight = currentWeightVal || startW;
+  const weeklyRate = baseWeight * pacePct;
+  const diff = Math.abs(targetW - startW);
+  const weeks = weeklyRate > 0 ? diff / weeklyRate : 0;
+
+  const today = new Date();
+  today.setDate(today.getDate() + Math.round(weeks * 7));
+  const completionDateStr = today.toISOString().split('T')[0];
+
+  document.getElementById('projWeeklyRate').textContent = `${weeklyRate.toFixed(2)} kg/week`;
+  document.getElementById('projDuration').textContent = `${Math.ceil(weeks)} week(s) (${weeks.toFixed(1)} actual)`;
+  document.getElementById('projTargetDate').textContent = today.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  
+  document.getElementById('goalTargetDateInput').value = completionDateStr;
+  projBlock.style.display = 'block';
+}
+window.updateGoalTimelineProjection = updateGoalTimelineProjection;
 
 function openWeightGoalModal() {
   const modal = document.getElementById('weightGoalModal');
@@ -1297,16 +1443,30 @@ function openWeightGoalModal() {
     document.getElementById('targetWeightInput').value = userTargetWeight || '';
     document.getElementById('goalTargetDateInput').value = userTargetDate || '';
 
-    // Initialize pill selection and conditional fields visibility
     selectGoalTypePill(defaultGoal);
 
-    // Clear validation message
+    // Populate active sub-option selectors
+    const pace = (userProfile && userProfile.pace) || 'normal';
+    const muscle = (userProfile && userProfile.muscle_focus) || 'preserve';
+    const maint = (userProfile && userProfile.maintenance_focus) || 'stay_fit';
+
+    if (defaultGoal === 'lose') {
+      selectGoalSubOption('pace', pace);
+      selectGoalSubOption('muscle', muscle);
+    } else if (defaultGoal === 'gain') {
+      selectGoalSubOption('pace_gain', pace);
+      selectGoalSubOption('muscle_gain', muscle === 'preserve' ? 'lean' : muscle);
+    } else {
+      selectGoalSubOption('maintain_focus', maint);
+    }
+
     const errEl = document.getElementById('goalValidationError');
     if (errEl) {
       errEl.style.display = 'none';
       errEl.textContent = '';
     }
 
+    updateGoalTimelineProjection();
     modal.style.display = 'flex';
   }
 }
@@ -1324,13 +1484,26 @@ async function saveWeightGoalForm() {
   const targetWeight = parseFloat(document.getElementById('targetWeightInput').value) || 0.0;
   const targetDate = document.getElementById('goalTargetDateInput').value || null;
 
+  let pace = null;
+  let muscle = null;
+  let maintFocus = null;
+
+  if (goalType === 'lose') {
+    pace = document.getElementById('goalPaceInput').value;
+    muscle = document.getElementById('goalMuscleInput').value;
+  } else if (goalType === 'gain') {
+    pace = document.getElementById('goalPaceGainInput').value;
+    muscle = document.getElementById('goalMuscleGainInput').value;
+  } else if (goalType === 'maintain') {
+    maintFocus = document.getElementById('goalMaintainFocusInput').value;
+  }
+
   const errEl = document.getElementById('goalValidationError');
   if (errEl) {
     errEl.style.display = 'none';
     errEl.textContent = '';
   }
 
-  // 1. Validate positive weights
   if (startingWeight <= 0 || targetWeight <= 0) {
     const errMsg = "Please enter valid starting and target weights.";
     if (errEl) {
@@ -1342,7 +1515,6 @@ async function saveWeightGoalForm() {
     return;
   }
 
-  // 2. Validate directional target weights relative to current weight
   if (goalType === 'lose' && targetWeight >= currentWeightVal) {
     const errMsg = `Target weight (${targetWeight.toFixed(1)} kg) must be less than your current weight (${currentWeightVal.toFixed(1)} kg) for a weight loss goal.`;
     if (errEl) {
@@ -1375,7 +1547,10 @@ async function saveWeightGoalForm() {
         goal_type: goalType,
         target_weight_kg: targetWeight,
         starting_weight_kg: startingWeight,
-        target_date: goalType === 'maintain' ? null : targetDate
+        target_date: goalType === 'maintain' ? null : targetDate,
+        pace: pace,
+        muscle_focus: muscle,
+        maintenance_focus: maintFocus
       })
     });
     if (res.ok) {
@@ -1401,6 +1576,124 @@ async function saveWeightGoalForm() {
       alert(errMsg);
     }
   }
+}
+
+async function checkWeeklyWeighIn(profile, currentWeight) {
+  const banner = document.getElementById('weeklyCheckinBanner');
+  const textEl = document.getElementById('weeklyCheckinText');
+  if (!banner || !textEl) return;
+
+  if (!profile || !profile.goal_type) {
+    banner.style.display = 'none';
+    return;
+  }
+
+  try {
+    const res = await fetch('/weight/history?days=90');
+    if (!res.ok) {
+      banner.style.display = 'none';
+      return;
+    }
+    
+    const history = await res.json();
+    if (!history || history.length === 0) {
+      textEl.textContent = "You haven't logged any weight history yet — log your weight to track your goal.";
+      banner.style.display = 'flex';
+      return;
+    }
+
+    history.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    const latestLog = history[0];
+    const latestDate = new Date(latestLog.date + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    latestDate.setHours(0,0,0,0);
+    const diffTime = today - latestDate;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays >= 7) {
+      textEl.textContent = `It's been ${diffDays} days since your last weigh-in — log your current weight to see if you're on pace.`;
+      banner.style.display = 'flex';
+      return;
+    }
+
+    if (history.length < 2) {
+      textEl.textContent = "Goal active! Log your weight next week to check your weekly pace progress.";
+      banner.style.display = 'flex';
+      return;
+    }
+
+    // Filter to last 14 days for a representative change trend
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    const recentLogs = history.filter(h => new Date(h.date) >= fourteenDaysAgo);
+    
+    let oldest = history[history.length - 1];
+    let latest = history[0];
+    if (recentLogs.length >= 2) {
+      oldest = recentLogs[recentLogs.length - 1];
+      latest = recentLogs[0];
+    }
+
+    const daysDiff = (new Date(latest.date + 'T00:00:00') - new Date(oldest.date + 'T00:00:00')) / (1000 * 60 * 60 * 24);
+    if (daysDiff < 1) {
+      textEl.textContent = "Goal active. Log weight regularly to view your pace.";
+      banner.style.display = 'flex';
+      return;
+    }
+
+    const weightDiff = latest.weight_kg - oldest.weight_kg;
+    const actualWeeklyRate = (weightDiff / daysDiff) * 7;
+    displayPaceMessage(profile, actualWeeklyRate, textEl, banner);
+  } catch (e) {
+    console.error('Error checking weigh-in schedule:', e);
+    banner.style.display = 'none';
+  }
+}
+
+function displayPaceMessage(profile, actualWeeklyRate, textEl, banner) {
+  const goalType = profile.goal_type;
+  const paceVal = profile.pace || 'normal';
+  let pacePct = 0.005;
+  if (paceVal === 'mild') pacePct = 0.0025;
+  else if (paceVal === 'aggressive') pacePct = 0.01;
+
+  const baseWeight = parseFloat(profile.weight_kg) || 75.0;
+  const targetWeeklyRate = baseWeight * pacePct;
+
+  let actualRateOfChange = 0;
+  let text = '';
+  
+  if (goalType === 'lose') {
+    actualRateOfChange = -actualWeeklyRate;
+    if (actualRateOfChange >= targetWeeklyRate * 1.15) {
+      text = `🔥 Ahead of pace: You are losing weight faster than your target of ${targetWeeklyRate.toFixed(2)} kg/week (actual: ${actualRateOfChange.toFixed(2)} kg/week).`;
+    } else if (actualRateOfChange <= targetWeeklyRate * 0.85) {
+      text = `⚠️ Behind pace: You are losing weight slower than your target of ${targetWeeklyRate.toFixed(2)} kg/week (actual: ${actualRateOfChange.toFixed(2)} kg/week).`;
+    } else {
+      text = `✨ On pace: You are right on target to achieve your weight loss goal! (Target: ${targetWeeklyRate.toFixed(2)} kg/week, Actual: ${actualRateOfChange.toFixed(2)} kg/week).`;
+    }
+  } else if (goalType === 'gain') {
+    actualRateOfChange = actualWeeklyRate;
+    if (actualRateOfChange >= targetWeeklyRate * 1.15) {
+      text = `🔥 Ahead of pace: You are gaining weight faster than your target of ${targetWeeklyRate.toFixed(2)} kg/week (actual: ${actualRateOfChange.toFixed(2)} kg/week).`;
+    } else if (actualRateOfChange <= targetWeeklyRate * 0.85) {
+      text = `⚠️ Behind pace: You are gaining weight slower than your target of ${targetWeeklyRate.toFixed(2)} kg/week (actual: ${actualRateOfChange.toFixed(2)} kg/week).`;
+    } else {
+      text = `✨ On pace: You are right on target to achieve your weight gain goal! (Target: ${targetWeeklyRate.toFixed(2)} kg/week, Actual: ${actualRateOfChange.toFixed(2)} kg/week).`;
+    }
+  } else {
+    const absChange = Math.abs(actualWeeklyRate);
+    if (absChange <= 0.25) {
+      text = `✨ On pace: You are successfully maintaining your weight within target boundaries (weekly change: ${actualWeeklyRate.toFixed(2)} kg/week).`;
+    } else {
+      text = `⚠️ Behind pace: Your weight has drifted recently (weekly change: ${actualWeeklyRate.toFixed(2)} kg/week). Aim to stabilize.`;
+    }
+  }
+  
+  textEl.textContent = text;
+  banner.style.display = 'flex';
 }
 
 async function initStrengthAnalytics() {

@@ -832,6 +832,77 @@ def test_strength_trend_analytics():
         except PermissionError:
             pass
 
+def test_detailed_weight_goal_management():
+    """Verify detailed weight goal inputs, including pace, muscle preservation, and maintenance focus."""
+    import tempfile
+    from database import db
+    from fastapi.testclient import TestClient
+    from main import app
+    
+    temp_db_fd, temp_db_path = tempfile.mkstemp()
+    os.close(temp_db_fd)
+    
+    try:
+        original_db_path = db.DB_PATH
+        db.DB_PATH = temp_db_path
+        db.init_db()
+        
+        client = TestClient(app)
+        from main import get_current_user_id
+        app.dependency_overrides[get_current_user_id] = lambda: 1
+        
+        # 1. Post a detailed weight loss goal
+        payload_lose = {
+            "goal_type": "lose",
+            "target_weight_kg": 75.0,
+            "starting_weight_kg": 85.0,
+            "target_date": "2026-10-31",
+            "pace": "aggressive",
+            "muscle_focus": "preserve",
+            "maintenance_focus": ""
+        }
+        resp = client.post("/profile/weight-goal", json=payload_lose)
+        assert resp.status_code == 200
+        
+        profile = db.get_profile(1)
+        assert profile["goal_type"] == "lose"
+        assert profile["target_weight_kg"] == 75.0
+        assert profile["pace"] == "aggressive"
+        assert profile["muscle_focus"] == "preserve"
+        assert profile["maintenance_focus"] is None # Normalized to None
+        
+        # 2. Post a detailed maintenance goal (should clear pace, muscle focus, and target date)
+        payload_maint = {
+            "goal_type": "maintain",
+            "target_weight_kg": 75.0,
+            "starting_weight_kg": 75.0,
+            "target_date": "2026-10-31",
+            "pace": "aggressive",
+            "muscle_focus": "preserve",
+            "maintenance_focus": "build_muscle"
+        }
+        resp = client.post("/profile/weight-goal", json=payload_maint)
+        assert resp.status_code == 200
+        
+        profile = db.get_profile(1)
+        assert profile["goal_type"] == "maintain"
+        assert profile["target_weight_kg"] == 75.0
+        assert profile["pace"] is None # Normalized to None for maintain
+        assert profile["muscle_focus"] is None # Normalized to None for maintain
+        assert profile["target_date"] is None # Normalized to None for maintain
+        assert profile["maintenance_focus"] == "build_muscle"
+        
+        app.dependency_overrides.clear()
+        
+    finally:
+        db.DB_PATH = original_db_path
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass
+
+
 
 
 

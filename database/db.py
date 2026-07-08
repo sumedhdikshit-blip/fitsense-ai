@@ -52,6 +52,9 @@ def init_db():
       target_weight_kg REAL,
       starting_weight_kg REAL,
       target_date TEXT,
+      pace TEXT,
+      muscle_focus TEXT,
+      maintenance_focus TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
@@ -128,7 +131,20 @@ def init_db():
         cursor.execute("ALTER TABLE users ADD COLUMN alcohol_consumption TEXT;")
     except sqlite3.OperationalError:
         pass
-        
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN pace TEXT;")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN muscle_focus TEXT;")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN maintenance_focus TEXT;")
+    except sqlite3.OperationalError:
+        pass
+
     # 2. sessions
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS sessions (
@@ -476,14 +492,15 @@ def save_profile(user_id, name, age, weight, height, sex, fitness_goal, gender=N
     conn.commit()
     conn.close()
 
-def save_weight_goal(user_id, goal_type, target_weight_kg, starting_weight_kg, target_date):
+def save_weight_goal(user_id, goal_type, target_weight_kg, starting_weight_kg, target_date, pace=None, muscle_focus=None, maintenance_focus=None):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         UPDATE users 
-        SET goal_type = ?, target_weight_kg = ?, starting_weight_kg = ?, target_date = ? 
+        SET goal_type = ?, target_weight_kg = ?, starting_weight_kg = ?, target_date = ?,
+            pace = ?, muscle_focus = ?, maintenance_focus = ?
         WHERE user_id = ?
-    """, (goal_type, target_weight_kg, starting_weight_kg, target_date, user_id))
+    """, (goal_type, target_weight_kg, starting_weight_kg, target_date, pace, muscle_focus, maintenance_focus, user_id))
     conn.commit()
     conn.close()
 

@@ -1173,4 +1173,28 @@ label {
   text-shadow: 0 0 8px rgba(41, 182, 246, 0.25);
 }
 
+.goal-sub-pill {
+  flex: 1;
+  text-align: center;
+  padding: 8px 4px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-muted);
+}
+.goal-sub-pill:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.12);
+  color: #ffffff;
+}
+.goal-sub-pill.active {
+  background: rgba(137, 180, 250, 0.12);
+  border-color: var(--color-blue);
+  color: var(--color-blue);
+  text-shadow: 0 0 8px rgba(137, 180, 250, 0.25);
+}
+
+
 

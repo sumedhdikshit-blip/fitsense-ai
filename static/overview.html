@@ -84,6 +84,19 @@
     <!-- Nav injected here -->
     <div id="navPlaceholder"></div>
 
+    <!-- Weekly Weigh-In Check-In Banner -->
+    <div id="weeklyCheckinBanner" class="panel" style="display: none; margin-bottom: 20px; padding: 12px 18px; border-radius: 8px; flex-direction: row; justify-content: space-between; align-items: center; border-left: 4px solid var(--color-blue); background: rgba(41, 182, 246, 0.05); gap: 15px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 1.25rem;">⚖️</span>
+        <span id="weeklyCheckinText" style="font-size: 0.9rem; font-weight: 500; color: #cdd6f4;">
+          It's been a week since your last weigh-in — log your current weight to see if you're on pace.
+        </span>
+      </div>
+      <button class="btn btn-sm btn-info" onclick="document.getElementById('weightModal').classList.add('active');" style="margin: 0; padding: 6px 12px; height: auto;">
+        Log Weight
+      </button>
+    </div>
+
     <!-- Daily Dashboard Board -->
     <section class="dashboard-grid daily-dashboard-section">
       <!-- Left Panel: Weight Tracking -->
@@ -405,16 +418,108 @@
         <div class="form-row">
           <div class="form-group col-6">
             <label for="startingWeightInput">Starting Weight (kg)</label>
-            <input type="number" id="startingWeightInput" step="0.1" min="10" max="500" class="form-input">
+            <input type="number" id="startingWeightInput" step="0.1" min="10" max="500" class="form-input" oninput="updateGoalTimelineProjection()">
           </div>
           <div class="form-group col-6">
             <label for="targetWeightInput">Target Weight (kg)</label>
-            <input type="number" id="targetWeightInput" step="0.1" min="10" max="500" class="form-input">
+            <input type="number" id="targetWeightInput" step="0.1" min="10" max="500" class="form-input" oninput="updateGoalTimelineProjection()">
           </div>
         </div>
+
+        <!-- Extended Sub-options container based on Goal Type Selection -->
+        <div id="goalSubOptionsContainer" style="margin-top: 15px; margin-bottom: 15px;">
+          <!-- Lose sub-options -->
+          <div id="subLoseGroup" style="display: none;">
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label style="display: block; margin-bottom: 6px; font-size: 0.85rem; color: #a6adc8;">Weekly Deficit Pace</label>
+              <div class="goal-sub-selector-group" style="display: flex; gap: 8px;">
+                <div class="goal-sub-pill active" data-type="pace" data-value="mild" onclick="selectGoalSubOption('pace', 'mild')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Mild (0.25%/wk)</div>
+                </div>
+                <div class="goal-sub-pill" data-type="pace" data-value="normal" onclick="selectGoalSubOption('pace', 'normal')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Normal (0.5%/wk)</div>
+                </div>
+                <div class="goal-sub-pill" data-type="pace" data-value="aggressive" onclick="selectGoalSubOption('pace', 'aggressive')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Aggressive (1.0%/wk)</div>
+                </div>
+              </div>
+              <input type="hidden" id="goalPaceInput" value="mild">
+            </div>
+            <div class="form-group">
+              <label style="display: block; margin-bottom: 6px; font-size: 0.85rem; color: #a6adc8;">Muscle Preservation</label>
+              <div class="goal-sub-selector-group" style="display: flex; gap: 8px;">
+                <div class="goal-sub-pill active" data-type="muscle" data-value="preserve" onclick="selectGoalSubOption('muscle', 'preserve')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Preserve Muscle</div>
+                </div>
+                <div class="goal-sub-pill" data-type="muscle" data-value="none" onclick="selectGoalSubOption('muscle', '')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Standard Loss</div>
+                </div>
+              </div>
+              <input type="hidden" id="goalMuscleInput" value="preserve">
+            </div>
+          </div>
+
+          <!-- Gain sub-options -->
+          <div id="subGainGroup" style="display: none;">
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label style="display: block; margin-bottom: 6px; font-size: 0.85rem; color: #a6adc8;">Weekly Surplus Pace</label>
+              <div class="goal-sub-selector-group" style="display: flex; gap: 8px;">
+                <div class="goal-sub-pill active" data-type="pace_gain" data-value="mild" onclick="selectGoalSubOption('pace_gain', 'mild')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Mild (0.25%/wk)</div>
+                </div>
+                <div class="goal-sub-pill" data-type="pace_gain" data-value="normal" onclick="selectGoalSubOption('pace_gain', 'normal')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Normal (0.5%/wk)</div>
+                </div>
+                <div class="goal-sub-pill" data-type="pace_gain" data-value="aggressive" onclick="selectGoalSubOption('pace_gain', 'aggressive')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Aggressive (1.0%/wk)</div>
+                </div>
+              </div>
+              <input type="hidden" id="goalPaceGainInput" value="mild">
+            </div>
+            <div class="form-group">
+              <label style="display: block; margin-bottom: 6px; font-size: 0.85rem; color: #a6adc8;">Surplus Style</label>
+              <div class="goal-sub-selector-group" style="display: flex; gap: 8px;">
+                <div class="goal-sub-pill active" data-type="muscle_gain" data-value="lean" onclick="selectGoalSubOption('muscle_gain', 'lean')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Lean Muscle</div>
+                </div>
+                <div class="goal-sub-pill" data-type="muscle_gain" data-value="bulk" onclick="selectGoalSubOption('muscle_gain', 'bulk')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Bulk (Surplus)</div>
+                </div>
+              </div>
+              <input type="hidden" id="goalMuscleGainInput" value="lean">
+            </div>
+          </div>
+
+          <!-- Maintain sub-options -->
+          <div id="subMaintainGroup" style="display: none;">
+            <div class="form-group">
+              <label style="display: block; margin-bottom: 6px; font-size: 0.85rem; color: #a6adc8;">Maintenance Focus</label>
+              <div class="goal-sub-selector-group" style="display: flex; gap: 8px;">
+                <div class="goal-sub-pill active" data-type="maintain_focus" data-value="stay_fit" onclick="selectGoalSubOption('maintain_focus', 'stay_fit')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Stay Fit</div>
+                </div>
+                <div class="goal-sub-pill" data-type="maintain_focus" data-value="build_muscle" onclick="selectGoalSubOption('maintain_focus', 'build_muscle')">
+                  <div style="font-size: 0.82rem; font-weight: 600;">Build Muscle (Recomp)</div>
+                </div>
+              </div>
+              <input type="hidden" id="goalMaintainFocusInput" value="stay_fit">
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-Time Projection summary block -->
+        <div id="goalProjectionBlock" style="display: none; background: rgba(137, 180, 250, 0.05); border: 1px solid rgba(137, 180, 250, 0.15); padding: 12px; border-radius: 6px; margin-top: 15px; margin-bottom: 15px;">
+          <div style="font-weight: 700; color: #89b4fa; font-size: 0.9rem; margin-bottom: 6px;">🎯 Live Timeline Projection</div>
+          <div style="font-size: 0.85rem; color: #a6adc8; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div>Target Weekly Rate: <strong id="projWeeklyRate" style="color: #ffffff;">0.00 kg/week</strong></div>
+            <div>Estimated Duration: <strong id="projDuration" style="color: #ffffff;">0 weeks</strong></div>
+            <div style="grid-column: span 2;">Target Completion Date: <strong id="projTargetDate" style="color: #ffffff;">N/A</strong></div>
+          </div>
+        </div>
+
         <div class="form-group" id="goalTargetDateGroup">
           <label for="goalTargetDateInput">Target Date (Optional)</label>
-          <input type="date" id="goalTargetDateInput" class="form-input">
+          <input type="date" id="goalTargetDateInput" class="form-input" readonly style="background: rgba(255,255,255,0.02); color: #888; cursor: not-allowed;">
         </div>
         <div id="goalValidationError" style="color: #f38ba8; font-size: 0.85rem; margin-top: 10px; display: none; text-align: center; font-weight: 600;"></div>
       </div>

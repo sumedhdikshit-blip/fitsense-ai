@@ -91,4 +91,8 @@ class WeightGoalRequest(BaseModel):
     target_weight_kg: float = Field(..., ge=10, le=500)
     starting_weight_kg: float = Field(..., ge=10, le=500)
     target_date: Optional[str] = None
+    pace: Optional[str] = Field(None, pattern="^(mild|normal|aggressive|)$")
+    muscle_focus: Optional[str] = Field(None, pattern="^(preserve|lean|bulk|)$")
+    maintenance_focus: Optional[str] = Field(None, pattern="^(stay_fit|build_muscle|)$")
+
 
