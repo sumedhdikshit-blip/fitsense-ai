@@ -1581,14 +1581,14 @@ function openWeightGoalModal() {
     }
 
     updateGoalTimelineProjection();
-    modal.style.display = 'flex';
+    modal.classList.add('active');
   }
 }
 
 function closeWeightGoalModal() {
   const modal = document.getElementById('weightGoalModal');
   if (modal) {
-    modal.style.display = 'none';
+    modal.classList.remove('active');
   }
 }
 
