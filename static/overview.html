@@ -415,6 +415,24 @@
           <label for="foodDate">Date</label>
           <input type="date" id="foodDate" class="form-input">
         </div>
+        <div class="form-group">
+          <label style="display: block; margin-bottom: 8px;">Filter by Meal Category</label>
+          <div class="meal-category-filter-group" style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <div class="meal-category-pill" data-value="breakfast" onclick="toggleMealCategoryFilter('breakfast')">
+              🍳 Breakfast
+            </div>
+            <div class="meal-category-pill" data-value="lunch" onclick="toggleMealCategoryFilter('lunch')">
+              🍛 Lunch
+            </div>
+            <div class="meal-category-pill" data-value="snacks" onclick="toggleMealCategoryFilter('snacks')">
+              🍿 Snacks
+            </div>
+            <div class="meal-category-pill" data-value="dinner" onclick="toggleMealCategoryFilter('dinner')">
+              🥗 Dinner
+            </div>
+          </div>
+          <input type="hidden" id="selectedMealCategory" value="any">
+        </div>
         <div class="form-group" style="position: relative;">
           <label for="foodSearchInput">Search Food Database</label>
           <input type="text" id="foodSearchInput" placeholder="Search for food (e.g. Oats, Eggs, Apple)..." class="form-input" autocomplete="off">

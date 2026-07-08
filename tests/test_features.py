@@ -690,4 +690,70 @@ def test_weight_goal_management():
         except PermissionError:
             pass
 
+def test_food_search_category_filter():
+    """Verify that food search filters correctly by category, allowing NULL/any categories to always show."""
+    import tempfile
+    from database import db
+    from fastapi.testclient import TestClient
+    from main import app
+    
+    temp_db_fd, temp_db_path = tempfile.mkstemp()
+    os.close(temp_db_fd)
+    
+    try:
+        original_db_path = db.DB_PATH
+        db.DB_PATH = temp_db_path
+        db.init_db()
+        
+        # Seed foods with various categories
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO food_database (name, calories, protein_g, carbs_g, fat_g, fiber_g, meal_category) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                       ("Breakfast Oats", 150.0, 5.0, 30.0, 2.0, 4.0, "breakfast"))
+        cursor.execute("INSERT INTO food_database (name, calories, protein_g, carbs_g, fat_g, fiber_g, meal_category) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                       ("Lunch Rice", 200.0, 4.0, 45.0, 1.0, 1.0, "lunch"))
+        cursor.execute("INSERT INTO food_database (name, calories, protein_g, carbs_g, fat_g, fiber_g, meal_category) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                       ("Anytime Apple", 50.0, 0.3, 13.0, 0.2, 2.4, None))
+        conn.commit()
+        conn.close()
+        
+        client = TestClient(app)
+        from main import get_current_user_id
+        app.dependency_overrides[get_current_user_id] = lambda: 1
+        
+        # 1. Search with no filter (should return all 3)
+        resp = client.get("/food/search?q=")
+        assert resp.status_code == 200
+        results = resp.json()
+        assert len(results) == 3
+        
+        # 2. Search with category=breakfast (should return Breakfast Oats and Anytime Apple, not Lunch Rice)
+        resp = client.get("/food/search?q=&category=breakfast")
+        assert resp.status_code == 200
+        results = resp.json()
+        names = [r["name"] for r in results]
+        assert "Breakfast Oats" in names
+        assert "Anytime Apple" in names
+        assert "Lunch Rice" not in names
+        
+        # 3. Search with category=lunch (should return Lunch Rice and Anytime Apple, not Breakfast Oats)
+        resp = client.get("/food/search?q=&category=lunch")
+        assert resp.status_code == 200
+        results = resp.json()
+        names = [r["name"] for r in results]
+        assert "Lunch Rice" in names
+        assert "Anytime Apple" in names
+        assert "Breakfast Oats" not in names
+        
+        app.dependency_overrides.clear()
+        
+    finally:
+        db.DB_PATH = original_db_path
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass
+
+
 

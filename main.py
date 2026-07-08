@@ -919,14 +919,21 @@ def get_cardio_date(date: str, user_id: int = Depends(get_current_user_id)):
 # --- Part 2 Nutrition Endpoints ---
 
 @app.get("/food/search")
-def search_food(q: str = "", user_id: int = Depends(get_current_user_id)):
+def search_food(q: str = "", category: Optional[str] = None, user_id: int = Depends(get_current_user_id)):
     conn = db.get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT * FROM food_database 
-        WHERE name LIKE ? 
-        LIMIT 15
-    """, (f"%{q}%",))
+    if category and category.lower() != 'any':
+        cursor.execute("""
+            SELECT * FROM food_database 
+            WHERE name LIKE ? AND (meal_category = ? OR meal_category IS NULL OR meal_category = 'any') 
+            LIMIT 15
+        """, (f"%{q}%", category.lower()))
+    else:
+        cursor.execute("""
+            SELECT * FROM food_database 
+            WHERE name LIKE ? 
+            LIMIT 15
+        """, (f"%{q}%",))
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
