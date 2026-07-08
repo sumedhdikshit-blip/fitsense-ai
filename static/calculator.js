@@ -30,6 +30,13 @@ async function prefillFromProfile() {
 function runCalculation(e) {
   e.preventDefault();
 
+  const btn = document.getElementById('calculateBtn');
+  if (!btn) return;
+
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span style="display:inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: coach-spin 1s infinite linear; margin-right: 8px; vertical-align: middle;"></span> Calculating...`;
+
   const weight = parseFloat(document.getElementById('calcWeight').value);
   const height = parseFloat(document.getElementById('calcHeight').value);
   const age = parseInt(document.getElementById('calcAge').value);
@@ -37,60 +44,66 @@ function runCalculation(e) {
   const protein = parseFloat(document.getElementById('calcProtein').value) || 0;
   const activityMultiplier = parseFloat(document.getElementById('calcActivity').value);
 
-  // 1. BMI
-  const bmi = weight / ((height / 100) ** 2);
+  setTimeout(() => {
+    // 1. BMI
+    const bmi = weight / ((height / 100) ** 2);
 
-  // 2. BMR (Mifflin-St Jeor)
-  let bmr = 0;
-  if (gender === 'male') {
-    bmr = 10 * weight + 6.25 * height - 5 * age + 5;
-  } else if (gender === 'female') {
-    bmr = 10 * weight + 6.25 * height - 5 * age - 161;
-  } else {
-    // Average of male and female
-    const maleBmr = 10 * weight + 6.25 * height - 5 * age + 5;
-    const femaleBmr = 10 * weight + 6.25 * height - 5 * age - 161;
-    bmr = (maleBmr + femaleBmr) / 2;
-  }
+    // 2. BMR (Mifflin-St Jeor)
+    let bmr = 0;
+    if (gender === 'male') {
+      bmr = 10 * weight + 6.25 * height - 5 * age + 5;
+    } else if (gender === 'female') {
+      bmr = 10 * weight + 6.25 * height - 5 * age - 161;
+    } else {
+      // Average of male and female
+      const maleBmr = 10 * weight + 6.25 * height - 5 * age + 5;
+      const femaleBmr = 10 * weight + 6.25 * height - 5 * age - 161;
+      bmr = (maleBmr + femaleBmr) / 2;
+    }
 
-  // 3. NEAT (Non-Exercise Activity Thermogenesis flat incidental estimate)
-  const neat = 75; // midpoint of 50-100 kcal
+    // 3. NEAT (Non-Exercise Activity Thermogenesis flat incidental estimate)
+    const neat = 75; // midpoint of 50-100 kcal
 
-  // 4. TDEE and TEF
-  // TDEE = (BMR_active + NEAT) / 0.90
-  // TEF = 10% of TDEE
-  const bmrActive = bmr * activityMultiplier;
-  const tdee = (bmrActive + neat) / 0.90;
-  const tef = tdee * 0.10;
+    // 4. TDEE and TEF
+    // TDEE = (BMR_active + NEAT) / 0.90
+    // TEF = 10% of TDEE
+    const bmrActive = bmr * activityMultiplier;
+    const tdee = (bmrActive + neat) / 0.90;
+    const tef = tdee * 0.10;
 
-  const currentResult = {
-    bmi: bmi.toFixed(1),
-    bmr: Math.round(bmr),
-    tef: Math.round(tef),
-    neat: Math.round(neat),
-    tdee: Math.round(tdee)
-  };
+    const currentResult = {
+      bmi: bmi.toFixed(1),
+      bmr: Math.round(bmr),
+      tef: Math.round(tef),
+      neat: Math.round(neat),
+      tdee: Math.round(tdee)
+    };
 
-  // If there was a previous calculation, populate the previous container
-  if (lastResult) {
-    document.getElementById('prevBmi').textContent = lastResult.bmi;
-    document.getElementById('prevBmr').textContent = `${lastResult.bmr} kcal`;
-    document.getElementById('prevTef').textContent = `${lastResult.tef} kcal`;
-    document.getElementById('prevNeat').textContent = `${lastResult.neat} kcal`;
-    document.getElementById('prevTdee').textContent = `${lastResult.tdee} kcal`;
-    document.getElementById('previousResults').style.display = 'block';
-  }
+    // If there was a previous calculation, populate the previous container
+    if (lastResult) {
+      document.getElementById('prevBmi').textContent = lastResult.bmi;
+      document.getElementById('prevBmr').textContent = `${lastResult.bmr} kcal`;
+      document.getElementById('prevTef').textContent = `${lastResult.tef} kcal`;
+      document.getElementById('prevNeat').textContent = `${lastResult.neat} kcal`;
+      document.getElementById('prevTdee').textContent = `${lastResult.tdee} kcal`;
+      document.getElementById('previousResults').style.display = 'block';
+    }
 
-  // Update current results UI
-  document.getElementById('valBmi').textContent = currentResult.bmi;
-  document.getElementById('valBmr').textContent = `${currentResult.bmr} kcal`;
-  document.getElementById('valTef').textContent = `${currentResult.tef} kcal`;
-  document.getElementById('valNeat').textContent = `${currentResult.neat} kcal`;
-  document.getElementById('valTdee').textContent = `${currentResult.tdee} kcal`;
+    // Update current results UI
+    document.getElementById('valBmi').textContent = currentResult.bmi;
+    document.getElementById('valBmr').textContent = `${currentResult.bmr} kcal`;
+    document.getElementById('valTef').textContent = `${currentResult.tef} kcal`;
+    document.getElementById('valNeat').textContent = `${currentResult.neat} kcal`;
+    document.getElementById('valTdee').textContent = `${currentResult.tdee} kcal`;
 
-  document.getElementById('noResultsMsg').style.display = 'none';
-  document.getElementById('currentResults').style.display = 'block';
+    document.getElementById('noResultsMsg').style.display = 'none';
+    document.getElementById('currentResults').style.display = 'block';
 
-  // Store this run as lastResult
-  lastResult = currentResult;
+    // Store this run as lastResult
+    lastResult = currentResult;
+
+    // Restore button state
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }, 350);
 }
