@@ -359,6 +359,20 @@ def init_db():
     );
     """)
 
+    # 11. exercise_library
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS exercise_library (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      muscle_group TEXT,
+      equipment TEXT,
+      difficulty_level TEXT,
+      instructions TEXT,
+      category TEXT
+    );
+    """)
+
+
     # Check if we have at least one user, insert default Athlete if none
     cursor.execute("SELECT COUNT(*) as count FROM users")
     if cursor.fetchone()["count"] == 0:
