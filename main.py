@@ -1570,42 +1570,71 @@ def read_root(request: Request):
     user_id = request.session.get("user_id")
     if not user_id:
         return RedirectResponse(url="/login.html")
-    return RedirectResponse(url="/overview")
+    user = db.get_user_by_id(user_id)
+    if user and user.get("is_admin"):
+        return RedirectResponse(url="/admin")
+    return RedirectResponse(url="/app/overview")
 
-@app.get("/overview")
+@app.get("/app")
+def read_app_root(request: Request):
+    return RedirectResponse(url="/app/overview")
+
+# User dashboard pages (under /app)
+@app.get("/app/overview")
 def read_overview(request: Request):
     user_id = request.session.get("user_id")
     if not user_id:
         return RedirectResponse(url="/login.html")
     return FileResponse("static/overview.html")
 
-@app.get("/workout")
+@app.get("/app/workout")
 def read_workout(request: Request):
     user_id = request.session.get("user_id")
     if not user_id:
         return RedirectResponse(url="/login.html")
     return FileResponse("static/workout.html")
 
-@app.get("/history")
+@app.get("/app/history")
 def read_history(request: Request):
     user_id = request.session.get("user_id")
     if not user_id:
         return RedirectResponse(url="/login.html")
     return FileResponse("static/history.html")
 
-@app.get("/profile-page")
+@app.get("/app/profile-page")
 def read_profile_page(request: Request):
     user_id = request.session.get("user_id")
     if not user_id:
         return RedirectResponse(url="/login.html")
     return FileResponse("static/profile.html")
 
-@app.get("/calculator")
+@app.get("/app/calculator")
 def read_calculator_page(request: Request):
     user_id = request.session.get("user_id")
     if not user_id:
         return RedirectResponse(url="/login.html")
     return FileResponse("static/calculator.html")
+
+# Backward compatibility / legacy route redirects
+@app.get("/overview")
+def redirect_overview():
+    return RedirectResponse(url="/app/overview")
+
+@app.get("/workout")
+def redirect_workout():
+    return RedirectResponse(url="/app/workout")
+
+@app.get("/history")
+def redirect_history():
+    return RedirectResponse(url="/app/history")
+
+@app.get("/profile-page")
+def redirect_profile_page():
+    return RedirectResponse(url="/app/profile-page")
+
+@app.get("/calculator")
+def redirect_calculator():
+    return RedirectResponse(url="/app/calculator")
 
 @app.post("/experimental/risk-estimate")
 @limiter.limit("10/minute")
@@ -1691,9 +1720,30 @@ def read_admin(request: Request):
     user = db.get_user_by_id(user_id)
     if not user or not user.get("is_admin"):
         return HTMLResponse("<html><body><h1>Access Denied</h1><p>You must be an admin to view this page.</p></body></html>", status_code=403)
-    return FileResponse("static/admin/admin.html")
+    return FileResponse("admin_static/admin.html")
+
+@app.get("/admin/admin.js")
+def read_admin_js(request: Request):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login.html")
+    user = db.get_user_by_id(user_id)
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Forbidden: Admin access required")
+    return FileResponse("admin_static/admin.js")
+
+@app.get("/admin/admin.css")
+def read_admin_css(request: Request):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login.html")
+    user = db.get_user_by_id(user_id)
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Forbidden: Admin access required")
+    return FileResponse("admin_static/admin.css")
 
 # Mount static folder last
+app.mount("/static", StaticFiles(directory="static"), name="static_assets")
 app.mount("/", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":

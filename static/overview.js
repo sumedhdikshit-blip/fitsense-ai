@@ -456,7 +456,7 @@ async function refreshDashboard() {
       if (progressBar && progressPctText && progressStatus) {
         progressBar.style.width = `0%`;
         progressPctText.textContent = `0%`;
-        progressStatus.innerHTML = '<span style="color:#f38ba8; font-weight:600;">Please <a href="/profile-page" style="color:#f38ba8; text-decoration:underline;">complete your profile</a> first.</span>';
+        progressStatus.innerHTML = '<span style="color:#f38ba8; font-weight:600;">Please <a href="/app/profile-page" style="color:#f38ba8; text-decoration:underline;">complete your profile</a> first.</span>';
       }
     } else {
       if (targetEl) {

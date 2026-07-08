@@ -1050,6 +1050,78 @@ def test_form_pattern_insights():
             pass
 
 
+def test_admin_routing_and_access_control():
+    """Verify routing separation and access control for admin endpoints/static files."""
+    import tempfile
+    from database import db
+    from fastapi.testclient import TestClient
+    from main import app
+
+    temp_db_fd, temp_db_path = tempfile.mkstemp()
+    os.close(temp_db_fd)
+
+    try:
+        original_db_path = db.DB_PATH
+        db.DB_PATH = temp_db_path
+        db.init_db()
+
+        # Create admin and regular user
+        admin_uid = db.create_user("admin_user", "password123", "Admin User", is_admin=1)
+        user_uid = db.create_user("regular_user", "password123", "Regular User", is_admin=0)
+
+        # Initialize test client
+        client = TestClient(app)
+
+        # 1. Unauthenticated requests to /admin should redirect to /login.html
+        resp = client.get("/admin", follow_redirects=False)
+        assert resp.status_code in [302, 307]
+        assert resp.headers["location"] == "/login.html"
+
+        # 2. Login as regular user
+        login_resp = client.post("/api/auth/login", json={"username": "regular_user", "password": "password123"})
+        assert login_resp.status_code == 200
+        assert login_resp.json()["is_admin"] is False
+
+        # Regular user should be blocked from admin endpoints
+        resp = client.get("/admin", follow_redirects=False)
+        assert resp.status_code == 403
+        assert "Access Denied" in resp.text
+
+        resp_js = client.get("/admin/admin.js", follow_redirects=False)
+        assert resp_js.status_code == 403
+
+        resp_css = client.get("/admin/admin.css", follow_redirects=False)
+        assert resp_css.status_code == 403
+
+        # Logout regular user
+        logout_resp = client.post("/api/auth/logout")
+        assert logout_resp.status_code == 200
+
+        # 3. Login as admin user
+        login_resp = client.post("/api/auth/login", json={"username": "admin_user", "password": "password123"})
+        assert login_resp.status_code == 200
+        assert login_resp.json()["is_admin"] is True
+
+        # Admin user should be allowed to view admin pages and assets
+        resp = client.get("/admin", follow_redirects=False)
+        assert resp.status_code == 200
+        assert "FitSense AI — Admin" in resp.text
+
+        resp_js = client.get("/admin/admin.js", follow_redirects=False)
+        assert resp_js.status_code == 200
+
+        resp_css = client.get("/admin/admin.css", follow_redirects=False)
+        assert resp_css.status_code == 200
+
+    finally:
+        db.DB_PATH = original_db_path
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass
+
+
 
 
 

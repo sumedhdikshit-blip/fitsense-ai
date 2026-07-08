@@ -246,7 +246,7 @@
           const data = await response.json();
           // Redirect admins to the admin dashboard, regular users to the main app
           // Button intentionally left disabled — page is navigating away
-          window.location.href = data.is_admin ? '/admin' : '/';
+          window.location.href = data.is_admin ? '/admin' : '/app';
         } else {
           const err = await response.json();
           errorBanner.textContent = err.detail || 'Invalid username or password.';

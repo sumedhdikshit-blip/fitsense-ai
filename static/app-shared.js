@@ -21,11 +21,11 @@ window.activeProfile = null;
 // ── Nav injection ───────────────────────────────────────────────────────────
 function injectNav(activePage) {
   const pages = [
-    { id: 'overview', label: 'Overview', href: '/overview' },
-    { id: 'workout',  label: 'Workout',  href: '/workout'  },
-    { id: 'history',  label: 'History',  href: '/history'  },
-    { id: 'profile',  label: 'Profile',  href: '/profile-page' },
-    { id: 'calculator', label: 'Calculator', href: '/calculator' },
+    { id: 'overview', label: 'Overview', href: '/app/overview' },
+    { id: 'workout',  label: 'Workout',  href: '/app/workout'  },
+    { id: 'history',  label: 'History',  href: '/app/history'  },
+    { id: 'profile',  label: 'Profile',  href: '/app/profile-page' },
+    { id: 'calculator', label: 'Calculator', href: '/app/calculator' },
   ];
 
   const navHtml = `
@@ -39,7 +39,6 @@ function injectNav(activePage) {
         `).join('')}
       </nav>
       <div class="header-right">
-        <a href="/admin" class="btn btn-secondary btn-sm" id="adminHeaderBtn" style="display:none;text-decoration:none;">Admin</a>
         <div class="user-badge">
           <div class="avatar" id="avatarBadge">A</div>
           <span id="username">Athlete</span>
@@ -80,8 +79,57 @@ async function initAuth() {
     if (usernameEl) usernameEl.textContent = user.name || 'Athlete';
     if (avatarEl)   avatarEl.textContent   = user.name ? user.name[0].toUpperCase() : 'U';
 
-    const adminBtn = document.getElementById('adminHeaderBtn');
-    if (adminBtn && user.is_admin) adminBtn.style.display = 'inline-flex';
+    // Setup a small functional dropdown option under profile/avatar for admins to reach /admin
+    if (user.is_admin) {
+      const userBadge = document.querySelector('.user-badge');
+      if (userBadge) {
+        userBadge.id = 'userBadge';
+        userBadge.style.position = 'relative';
+        userBadge.style.cursor = 'pointer';
+
+        const dropdown = document.createElement('div');
+        dropdown.id = 'userDropdown';
+        dropdown.style.display = 'none';
+        dropdown.style.position = 'absolute';
+        dropdown.style.top = '100%';
+        dropdown.style.right = '0';
+        dropdown.style.marginTop = '8px';
+        dropdown.style.background = '#1e1e1e';
+        dropdown.style.border = '1px solid var(--border-color)';
+        dropdown.style.borderRadius = '8px';
+        dropdown.style.padding = '8px';
+        dropdown.style.zIndex = '1000';
+        dropdown.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+        dropdown.style.minWidth = '120px';
+
+        const adminLink = document.createElement('a');
+        adminLink.href = '/admin';
+        adminLink.style.display = 'block';
+        adminLink.style.color = 'var(--text-main)';
+        adminLink.style.textDecoration = 'none';
+        adminLink.style.padding = '6px 12px';
+        adminLink.style.fontSize = '13px';
+        adminLink.style.borderRadius = '4px';
+        adminLink.style.transition = 'background 0.2s';
+        adminLink.textContent = 'Admin Panel';
+        adminLink.onmouseover = () => adminLink.style.background = 'rgba(255,255,255,0.08)';
+        adminLink.onmouseout = () => adminLink.style.background = 'transparent';
+
+        dropdown.appendChild(adminLink);
+        userBadge.appendChild(dropdown);
+
+        // Toggle dropdown on click
+        userBadge.addEventListener('click', (e) => {
+          e.stopPropagation();
+          dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // Close dropdown when clicking elsewhere
+        document.addEventListener('click', () => {
+          dropdown.style.display = 'none';
+        });
+      }
+    }
 
     return user;
   } catch (e) {
