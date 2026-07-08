@@ -96,3 +96,8 @@ class WeightGoalRequest(BaseModel):
     maintenance_focus: Optional[str] = Field(None, pattern="^(stay_fit|build_muscle|)$")
 
 
+class BarcodeScanRequest(BaseModel):
+    image_base64: str
+
+
+

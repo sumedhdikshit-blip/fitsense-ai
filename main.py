@@ -4,6 +4,39 @@ import numpy as np
 import asyncio
 import uvicorn
 from concurrent.futures import ThreadPoolExecutor
+import os
+import urllib.request
+import urllib.error
+import json
+
+# Configure DLL directory for pyzbar on Windows
+if os.name == 'nt':
+    import shutil
+    import site
+    try:
+        for sp_dir in site.getsitepackages():
+            pyzbar_dir = os.path.join(sp_dir, 'pyzbar')
+            if os.path.isdir(pyzbar_dir):
+                target_dll = os.path.join(pyzbar_dir, 'msvcr120.dll')
+                if not os.path.exists(target_dll):
+                    src = r"C:\Program Files\CONEXANT\SA3\HP-NB-AIO\msvcr120.dll"
+                    if os.path.exists(src):
+                        try:
+                            shutil.copy(src, target_dll)
+                        except Exception:
+                            pass
+                try:
+                    os.add_dll_directory(pyzbar_dir)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+try:
+    from pyzbar.pyzbar import decode as pyzbar_decode
+except Exception as e:
+    pyzbar_decode = None
+
 
 pose_executor = ThreadPoolExecutor(max_workers=4)
 from contextlib import asynccontextmanager
@@ -968,6 +1001,114 @@ def search_food(q: str = "", category: Optional[str] = None, user_id: int = Depe
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+@app.post("/food/scan-barcode")
+def scan_barcode(data: models.BarcodeScanRequest, user_id: int = Depends(get_current_user_id)):
+    if pyzbar_decode is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Barcode reader library (pyzbar/zbar) is not loaded correctly on the server."
+        )
+    
+    img_data = data.image_base64
+    if "," in img_data:
+        img_data = img_data.split(",")[1]
+        
+    try:
+        decoded_bytes = base64.b64decode(img_data)
+        np_arr = np.frombuffer(decoded_bytes, dtype=np.uint8)
+        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("Failed to decode image from base64 bytes.")
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid base64 image data: {str(e)}"
+        )
+        
+    barcodes = pyzbar_decode(img)
+    if not barcodes:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No barcode detected in the image. Please try again with better lighting/alignment."
+        )
+        
+    barcode_val = barcodes[0].data.decode('utf-8')
+    
+    url = f"https://world.openfoodfacts.org/api/v2/product/{barcode_val}.json"
+    req = urllib.request.Request(url, headers={'User-Agent': 'FitSenseAI - WebApp - Version 1.0'})
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            result = json.loads(response.read().decode())
+    except urllib.error.URLError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Open Food Facts API connection error: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unexpected lookup error: {str(e)}"
+        )
+        
+    if result.get("status") != 1 or "product" not in result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found — try manual search instead"
+        )
+        
+    product = result["product"]
+    product_name = product.get("product_name") or product.get("product_name_en") or f"Product {barcode_val}"
+    nutriments = product.get("nutriments", {})
+    
+    calories = nutriments.get("energy-kcal_100g") or nutriments.get("energy-kcal") or nutriments.get("energy-kcal_value")
+    if calories is None:
+        energy_kj = nutriments.get("energy-kj_100g") or nutriments.get("energy_100g")
+        if energy_kj is not None:
+            calories = float(energy_kj) / 4.184
+        else:
+            calories = 0.0
+            
+    protein_g = nutriments.get("proteins_100g") or 0.0
+    carbs_g = nutriments.get("carbohydrates_100g") or 0.0
+    fat_g = nutriments.get("fat_100g") or 0.0
+    saturated_fat_g = nutriments.get("saturated-fat_100g") or 0.0
+    fiber_g = nutriments.get("fiber_100g") or 0.0
+    sugar_g = nutriments.get("sugars_100g") or 0.0
+    
+    sodium_g = nutriments.get("sodium_100g") or 0.0
+    sodium_mg = float(sodium_g) * 1000.0
+    
+    calcium_g = nutriments.get("calcium_100g") or 0.0
+    calcium_mg = float(calcium_g) * 1000.0
+    
+    iron_g = nutriments.get("iron_100g") or 0.0
+    iron_mg = float(iron_g) * 1000.0
+    
+    vitamin_c_g = nutriments.get("vitamin-c_100g") or 0.0
+    vitamin_c_mg = float(vitamin_c_g) * 1000.0
+    
+    mapped_product = {
+        "food_id": None,
+        "name": product_name,
+        "serving_description": "100g",
+        "calories": round(float(calories), 1),
+        "protein_g": round(float(protein_g), 1),
+        "carbs_g": round(float(carbs_g), 1),
+        "fat_g": round(float(fat_g), 1),
+        "saturated_fat_g": round(float(saturated_fat_g), 1),
+        "fiber_g": round(float(fiber_g), 1),
+        "sodium_mg": round(float(sodium_mg), 1),
+        "sugar_g": round(float(sugar_g), 1),
+        "calcium_mg": round(float(calcium_mg), 1),
+        "iron_mg": round(float(iron_mg), 1),
+        "vitamin_c_mg": round(float(vitamin_c_mg), 1),
+        "meal_category": "any"
+    }
+    
+    return mapped_product
+
 
 @app.get("/nutrition/alerts")
 def get_nutrition_alerts(date: str = None, user_id: int = Depends(get_current_user_id)):

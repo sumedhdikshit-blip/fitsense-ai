@@ -80,7 +80,12 @@ function setupEventListeners() {
     
     foodModal.classList.add('active');
   });
-  closeFoodBtn.addEventListener('click', () => foodModal.classList.remove('active'));
+  closeFoodBtn.addEventListener('click', () => {
+    if (window.closeBarcodeScanner) {
+      window.closeBarcodeScanner();
+    }
+    foodModal.classList.remove('active');
+  });
   saveFoodBtn.addEventListener('click', saveFood);
 
   // Setup Food Search listeners
@@ -271,6 +276,112 @@ function setupEventListeners() {
   if (getInsightsBtn) {
     getInsightsBtn.addEventListener('click', fetchInsights);
   }
+
+  // Barcode scanner implementation
+  let barcodeStream = null;
+
+  function openBarcodeScanner() {
+    const section = document.getElementById('barcodeScannerSection');
+    const video = document.getElementById('barcodeVideo');
+    const status = document.getElementById('barcodeScanStatus');
+    
+    if (!section || !video) return;
+
+    status.textContent = "Requesting camera access...";
+    status.style.color = "#a6adc8";
+    section.style.display = 'flex';
+
+    navigator.mediaDevices.getUserMedia({ 
+      video: { 
+        width: { ideal: 640 }, 
+        height: { ideal: 480 },
+        facingMode: "environment"
+      } 
+    }).then(stream => {
+      barcodeStream = stream;
+      video.srcObject = stream;
+      video.play();
+      status.textContent = "Camera active. Hold a barcode steady in the target box.";
+    }).catch(error => {
+      console.error("Camera access error:", error);
+      status.textContent = "Camera access error. Please grant permissions and retry.";
+      status.style.color = "#f38ba8";
+    });
+  }
+  window.openBarcodeScanner = openBarcodeScanner;
+
+  function closeBarcodeScanner() {
+    const section = document.getElementById('barcodeScannerSection');
+    const video = document.getElementById('barcodeVideo');
+    const status = document.getElementById('barcodeScanStatus');
+
+    if (barcodeStream) {
+      barcodeStream.getTracks().forEach(track => track.stop());
+      barcodeStream = null;
+    }
+
+    if (video) {
+      video.srcObject = null;
+    }
+
+    if (section) {
+      section.style.display = 'none';
+    }
+    
+    if (status) {
+      status.textContent = "";
+    }
+  }
+  window.closeBarcodeScanner = closeBarcodeScanner;
+
+  async function captureAndScanBarcode() {
+    const video = document.getElementById('barcodeVideo');
+    const canvas = document.getElementById('barcodeCanvas');
+    const status = document.getElementById('barcodeScanStatus');
+
+    if (!video || !canvas || !status || !barcodeStream) return;
+
+    status.textContent = "Scanning frame...";
+    status.style.color = "#89b4fa";
+
+    try {
+      const ctx = canvas.getContext('2d');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+      const res = await fetch('/food/scan-barcode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ image_base64: dataUrl })
+      });
+
+      if (res.ok) {
+        const food = await res.json();
+        status.textContent = "Product recognized!";
+        status.style.color = "#a6e3a1";
+        
+        selectFood(food);
+        
+        setTimeout(() => {
+          closeBarcodeScanner();
+        }, 500);
+      } else {
+        const err = await res.json();
+        status.textContent = err.detail || "Barcode not recognized. Align and try again.";
+        status.style.color = "#f38ba8";
+      }
+    } catch (error) {
+      console.error("Scan API error:", error);
+      status.textContent = "Network or lookup error. Please try again.";
+      status.style.color = "#f38ba8";
+    }
+  }
+  window.captureAndScanBarcode = captureAndScanBarcode;
 }
 
 async function refreshDashboard() {
@@ -798,6 +909,9 @@ async function saveFood() {
   try {
     const res = await fetch('/nutrition/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (res.ok) {
+      if (window.closeBarcodeScanner) {
+        window.closeBarcodeScanner();
+      }
       document.getElementById('foodModal').classList.remove('active');
       await refreshDashboard();
       await fetchFitnessScore();

@@ -902,6 +902,90 @@ def test_detailed_weight_goal_management():
         except PermissionError:
             pass
 
+def test_barcode_scan_and_lookup():
+    """Verify barcode scanner base64 frame decoding, Open Food Facts endpoint parsing, and mapping."""
+    import tempfile
+    import json
+    from database import db
+    from fastapi.testclient import TestClient
+    from main import app
+    from unittest.mock import patch, MagicMock
+    import main
+    
+    temp_db_fd, temp_db_path = tempfile.mkstemp()
+    os.close(temp_db_fd)
+    
+    try:
+        original_db_path = db.DB_PATH
+        db.DB_PATH = temp_db_path
+        db.init_db()
+        
+        client = TestClient(app)
+        from main import get_current_user_id
+        app.dependency_overrides[get_current_user_id] = lambda: 1
+        
+        import cv2
+        import numpy as np
+        import base64
+        
+        # Create a simple 10x10 white image and encode to JPEG base64
+        img_np = np.ones((10, 10, 3), dtype=np.uint8) * 255
+        _, buffer = cv2.imencode('.jpg', img_np)
+        dummy_base64 = "data:image/jpeg;base64," + base64.b64encode(buffer).decode('utf-8')
+        
+        mock_barcode = MagicMock()
+        mock_barcode.data = b"737628005000"
+        
+        mock_api_response = {
+            "status": 1,
+            "product": {
+                "product_name": "Rice Noodles Test",
+                "nutriments": {
+                    "energy-kcal_100g": 350.0,
+                    "proteins_100g": 7.5,
+                    "carbohydrates_100g": 80.0,
+                    "fat_100g": 1.2,
+                    "saturated-fat_100g": 0.3,
+                    "fiber_100g": 2.5,
+                    "sugars_100g": 0.5,
+                    "sodium_100g": 0.02
+                }
+            }
+        }
+        
+        with patch("main.pyzbar_decode", return_value=[mock_barcode]), \
+             patch("urllib.request.urlopen") as mock_url_open:
+            
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = json.dumps(mock_api_response).encode("utf-8")
+            mock_url_open.return_value.__enter__.return_value = mock_resp
+            
+            resp = client.post("/food/scan-barcode", json={"image_base64": dummy_base64})
+            assert resp.status_code == 200
+            
+            food = resp.json()
+            assert food["name"] == "Rice Noodles Test"
+            assert food["calories"] == 350.0
+            assert food["protein_g"] == 7.5
+            assert food["carbs_g"] == 80.0
+            assert food["fat_g"] == 1.2
+            assert food["saturated_fat_g"] == 0.3
+            assert food["fiber_g"] == 2.5
+            assert food["sugar_g"] == 0.5
+            assert food["sodium_mg"] == 20.0
+            assert food["food_id"] is None
+            
+        app.dependency_overrides.clear()
+        
+    finally:
+        db.DB_PATH = original_db_path
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass
+
+
 
 
 
