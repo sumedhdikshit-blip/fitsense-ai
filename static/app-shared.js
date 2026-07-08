@@ -1,4 +1,7 @@
-// FitSense AI — Shared App Logic
+// Apply theme instantly on script parse to minimize FOUC
+if (localStorage.getItem('theme') === 'light') {
+  document.body.classList.add('light-theme');
+}
 
 // ── Global 401 interceptor ──────────────────────────────────────────────────
 const _originalFetch = window.fetch;
@@ -43,13 +46,26 @@ function injectNav(activePage) {
           <div class="avatar" id="avatarBadge">A</div>
           <span id="username">Athlete</span>
         </div>
+        <button id="themeToggleBtn" class="btn btn-secondary" style="margin-left:10px; padding: 6px; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-main); cursor: pointer;" title="Toggle Light/Dark Mode">
+          <!-- Moon Icon (Dark Mode active) -->
+          <svg id="themeIconMoon" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+          <!-- Sun Icon (Light Mode active) -->
+          <svg id="themeIconSun" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; display: none;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 7a5 5 0 100 10 5 5 0 000-10z" />
+          </svg>
+        </button>
         <button class="btn btn-danger btn-sm" id="logoutBtn" style="margin-left:10px;">Log Out</button>
       </div>
     </header>
   `;
 
   const placeholder = document.getElementById('navPlaceholder');
-  if (placeholder) placeholder.outerHTML = navHtml;
+  if (placeholder) {
+    placeholder.outerHTML = navHtml;
+    setupTheme();
+  }
 
   // Logout handler
   document.addEventListener('DOMContentLoaded', () => {
@@ -65,6 +81,42 @@ function injectNav(activePage) {
       });
     }
   });
+}
+
+function setupTheme() {
+  const toggleBtn = document.getElementById('themeToggleBtn');
+  const moonIcon = document.getElementById('themeIconMoon');
+  const sunIcon = document.getElementById('themeIconSun');
+
+  if (!toggleBtn) return;
+
+  // Apply current theme
+  const currentTheme = localStorage.getItem('theme') || 'dark';
+  if (currentTheme === 'light') {
+    document.body.classList.add('light-theme');
+    if (moonIcon) moonIcon.style.display = 'none';
+    if (sunIcon) sunIcon.style.display = 'block';
+  } else {
+    document.body.classList.remove('light-theme');
+    if (moonIcon) moonIcon.style.display = 'block';
+    if (sunIcon) sunIcon.style.display = 'none';
+  }
+
+  // Toggle handler
+  toggleBtn.onclick = () => {
+    const isLight = document.body.classList.contains('light-theme');
+    if (isLight) {
+      document.body.classList.remove('light-theme');
+      localStorage.setItem('theme', 'dark');
+      if (moonIcon) moonIcon.style.display = 'block';
+      if (sunIcon) sunIcon.style.display = 'none';
+    } else {
+      document.body.classList.add('light-theme');
+      localStorage.setItem('theme', 'light');
+      if (moonIcon) moonIcon.style.display = 'none';
+      if (sunIcon) sunIcon.style.display = 'block';
+    }
+  };
 }
 
 // ── Auth + user init ────────────────────────────────────────────────────────

@@ -19,6 +19,90 @@
   --color-red: #ff1744;
   --color-blue: #29b6f6;
   --color-orange: #ffa726;
+
+  /* Pill & overlay variables */
+  --pill-bg: rgba(255, 255, 255, 0.04);
+  --pill-border: rgba(255, 255, 255, 0.08);
+  --pill-hover-bg: rgba(255, 255, 255, 0.08);
+  --pill-hover-border: rgba(255, 255, 255, 0.15);
+  --pill-hover-text: #ffffff;
+  --pill-sub-bg: rgba(255, 255, 255, 0.03);
+  --pill-sub-border: rgba(255, 255, 255, 0.06);
+  --pill-sub-hover-bg: rgba(255, 255, 255, 0.06);
+  --pill-sub-hover-border: rgba(255, 255, 255, 0.12);
+  --nav-hover-bg: rgba(255, 255, 255, 0.06);
+
+  /* Alert background tints, borders, and text colors (Dark Mode) */
+  --alert-fiber-bg: rgba(249, 226, 175, 0.1);
+  --alert-fiber-border: rgba(249, 226, 175, 0.3);
+  --alert-fiber-text: #f9e2af;
+
+  --alert-protein-bg: rgba(180, 190, 254, 0.1);
+  --alert-protein-border: rgba(180, 190, 254, 0.3);
+  --alert-protein-text: #b4befe;
+
+  --alert-fat-bg: rgba(250, 179, 135, 0.1);
+  --alert-fat-border: rgba(250, 179, 135, 0.3);
+  --alert-fat-text: #fab387;
+
+  --alert-success-bg: rgba(166, 227, 161, 0.1);
+  --alert-success-border: rgba(166, 227, 161, 0.3);
+  --alert-success-text: #a6e3a1;
+
+  /* Input fields variables (Dark Mode) */
+  --input-bg: #0f0f0f;
+  --input-color: #ffffff;
+  --input-border: var(--border-color);
+  --input-placeholder: #555555;
+}
+
+body.light-theme {
+  --bg-color: #f5f5f7;
+  --panel-bg: #ffffff;
+  --accent-color: #00873c;
+  --text-main: #1a1a1a;
+  --text-muted: #555555;
+  --border-color: #e2e2e2;
+  
+  --color-green: #00873c;
+  --color-yellow: #b58900;
+  --color-red: #d32f2f;
+  --color-blue: #0288d1;
+  --color-orange: #e65100;
+
+  --pill-bg: rgba(0, 0, 0, 0.03);
+  --pill-border: rgba(0, 0, 0, 0.06);
+  --pill-hover-bg: rgba(0, 0, 0, 0.06);
+  --pill-hover-border: rgba(0, 0, 0, 0.12);
+  --pill-hover-text: #1a1a1a;
+  --pill-sub-bg: rgba(0, 0, 0, 0.02);
+  --pill-sub-border: rgba(0, 0, 0, 0.04);
+  --pill-sub-hover-bg: rgba(0, 0, 0, 0.04);
+  --pill-sub-hover-border: rgba(0, 0, 0, 0.08);
+  --nav-hover-bg: rgba(0, 0, 0, 0.05);
+
+  /* Alert background tints, borders, and text colors (Light Mode) */
+  --alert-fiber-bg: #fffde7;
+  --alert-fiber-border: #ffe082;
+  --alert-fiber-text: #7f5f00;
+
+  --alert-protein-bg: #e8eaf6;
+  --alert-protein-border: #c5cae9;
+  --alert-protein-text: #1a237e;
+
+  --alert-fat-bg: #fff3e0;
+  --alert-fat-border: #ffe0b2;
+  --alert-fat-text: #e65100;
+
+  --alert-success-bg: #e8f5e9;
+  --alert-success-border: #c8e6c9;
+  --alert-success-text: #1b5e20;
+
+  /* Input fields variables (Light Mode) */
+  --input-bg: #ffffff;
+  --input-color: #1a1a1a;
+  --input-border: #d1d1d1;
+  --input-placeholder: #888888;
 }
 
 body {
@@ -94,7 +178,7 @@ body {
 }
 
 .nav-link:hover {
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: var(--nav-hover-bg);
   color: var(--text-main);
 }
 
@@ -270,15 +354,19 @@ label {
 }
 
 .form-select {
-  background-color: #0f0f0f;
-  color: var(--text-main);
-  border: 1px solid var(--border-color);
+  background-color: var(--input-bg);
+  color: var(--input-color);
+  border: 1px solid var(--input-border);
   padding: 10px 12px;
   border-radius: 6px;
   font-size: 14px;
   outline: none;
   cursor: pointer;
   width: 100%;
+}
+.form-select option {
+  background-color: var(--input-bg);
+  color: var(--input-color);
 }
 
 .action-buttons {
@@ -648,24 +736,30 @@ label {
 }
 
 .form-input-readonly {
-  background-color: #0f0f0f;
+  background-color: var(--input-bg);
   color: var(--text-muted);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--input-border);
   padding: 10px;
   border-radius: 6px;
   font-size: 14px;
   outline: none;
   cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .form-input, .form-textarea {
-  background-color: #0f0f0f;
-  color: #fff;
-  border: 1px solid var(--border-color);
+  background-color: var(--input-bg);
+  color: var(--input-color);
+  border: 1px solid var(--input-border);
   padding: 10px;
   border-radius: 6px;
   font-size: 14px;
   outline: none;
+}
+
+.form-input::placeholder, .form-textarea::placeholder {
+  color: var(--input-placeholder);
+  opacity: 1;
 }
 
 .form-input:focus, .form-textarea:focus {
@@ -1117,15 +1211,15 @@ label {
   flex: 1;
   text-align: center;
   padding: 12px 8px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--pill-bg);
+  border: 1px solid var(--pill-border);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 .goal-type-pill:hover {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.15);
+  background: var(--pill-hover-bg);
+  border-color: var(--pill-hover-border);
 }
 .goal-type-pill.active {
   background: rgba(41, 182, 246, 0.1);
@@ -1152,8 +1246,8 @@ label {
   flex: 1;
   text-align: center;
   padding: 8px 4px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--pill-bg);
+  border: 1px solid var(--pill-border);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1162,9 +1256,9 @@ label {
   color: var(--text-muted);
 }
 .meal-category-pill:hover {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.15);
-  color: #ffffff;
+  background: var(--pill-hover-bg);
+  border-color: var(--pill-hover-border);
+  color: var(--pill-hover-text);
 }
 .meal-category-pill.active {
   background: rgba(41, 182, 246, 0.12);
@@ -1177,23 +1271,33 @@ label {
   flex: 1;
   text-align: center;
   padding: 8px 4px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
+  background: var(--pill-sub-bg);
+  border: 1px solid var(--pill-sub-border);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   color: var(--text-muted);
 }
 .goal-sub-pill:hover {
-  background: rgba(255,255,255,0.06);
-  border-color: rgba(255,255,255,0.12);
-  color: #ffffff;
+  background: var(--pill-sub-hover-bg);
+  border-color: var(--pill-sub-hover-border);
+  color: var(--pill-hover-text);
 }
 .goal-sub-pill.active {
   background: rgba(137, 180, 250, 0.12);
   border-color: var(--color-blue);
   color: var(--color-blue);
   text-shadow: 0 0 8px rgba(137, 180, 250, 0.25);
+}
+
+/* Canvas Charts Inversion for Light Mode readability */
+body.light-theme .chart-card canvas,
+body.light-theme .panel canvas,
+body.light-theme #weightChart,
+body.light-theme #macrosChart,
+body.light-theme #fiberChart,
+body.light-theme #strengthTrendChart {
+  filter: invert(1) hue-rotate(180deg);
 }
 
 
