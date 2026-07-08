@@ -257,6 +257,27 @@
       </div>
     </section>
 
+    <!-- Strength Analytics Section -->
+    <section class="dashboard-grid strength-analytics-section" style="margin-top: 20px; grid-template-columns: 1fr;">
+      <div class="panel">
+        <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h2>Strength & Volume Trend (Last 8 Weeks)</h2>
+            <span style="font-size: 0.85rem; color: #a6adc8;">Weekly best 1RM (Blue line, kg) & Total Volume (Amber bars, kg)</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label for="strengthExerciseSelect" style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">Exercise:</label>
+            <select id="strengthExerciseSelect" class="form-select" style="padding: 4px 8px; width: 220px; font-size: 0.85rem; height: auto;">
+              <!-- Ex keys populated dynamically in JS -->
+            </select>
+          </div>
+        </div>
+        <div style="padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+          <canvas id="strengthTrendChart" width="1120" height="260" style="display: block; width: 100%; height: auto;"></canvas>
+        </div>
+      </div>
+    </section>
+
     <!-- Fitness Score Section -->
     <section class="fitness-score-section" style="margin-top: 20px;">
       <div class="panel fitness-score-panel">

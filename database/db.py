@@ -939,3 +939,19 @@ def get_recent_prs_count(user_id, seven_days_ago_str):
                 new_prs += 1
                 
     return new_prs
+
+def get_strength_trend_data(user_id: int, exercise_key: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.date, st.reps_counted, st.weight_kg, st.weight_unit
+        FROM sets st
+        JOIN exercises e ON st.exercise_id = e.exercise_id
+        JOIN sessions s ON e.session_id = s.session_id
+        WHERE s.user_id = ? AND e.exercise_key = ?
+        ORDER BY s.date ASC
+    """, (user_id, exercise_key))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+

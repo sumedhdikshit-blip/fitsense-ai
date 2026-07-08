@@ -755,5 +755,83 @@ def test_food_search_category_filter():
         except PermissionError:
             pass
 
+def test_strength_trend_analytics():
+    """Verify estimated 1RM and volume calculations for the analytics endpoint."""
+    import tempfile
+    from datetime import datetime, timedelta
+    from database import db
+    from fastapi.testclient import TestClient
+    from main import app
+    
+    temp_db_fd, temp_db_path = tempfile.mkstemp()
+    os.close(temp_db_fd)
+    
+    try:
+        original_db_path = db.DB_PATH
+        db.DB_PATH = temp_db_path
+        db.init_db()
+        
+        # 1. Seed a session, exercise and sets
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Insert session (for today's date)
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        cursor.execute("INSERT INTO sessions (user_id, date) VALUES (?, ?)", (1, today_str))
+        session_id = cursor.lastrowid
+        
+        # Insert exercise
+        cursor.execute("INSERT INTO exercises (session_id, exercise_key, exercise_name) VALUES (?, ?, ?)", (session_id, "squat", "Barbell Squat"))
+        exercise_id = cursor.lastrowid
+        
+        # Insert sets:
+        # Set 1: reps=10, weight=100.0 kg -> 1RM = 100 * (1 + 10/30) = 133.33, Volume = 10 * 100 = 1000
+        # Set 2: reps=5, weight=120.0 kg -> 1RM = 120 * (1 + 5/30) = 140.0, Volume = 5 * 120 = 600
+        # Total Volume = 1600.0, Best 1RM = 140.0
+        cursor.execute("""
+            INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, weight_unit)
+            VALUES (?, ?, ?, ?, ?)
+        """, (exercise_id, 1, 10, 100.0, "kg"))
+        
+        cursor.execute("""
+            INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, weight_unit)
+            VALUES (?, ?, ?, ?, ?)
+        """, (exercise_id, 2, 5, 120.0, "kg"))
+        
+        conn.commit()
+        conn.close()
+        
+        client = TestClient(app)
+        from main import get_current_user_id
+        app.dependency_overrides[get_current_user_id] = lambda: 1
+        
+        # Call the strength trend endpoint
+        resp = client.get("/analytics/strength-trend?exercise_key=squat&weeks=8")
+        assert resp.status_code == 200
+        trend = resp.json()
+        
+        # We expect 8 weeks
+        assert len(trend) == 8
+        
+        # The last week (current week) should have best 1RM = 140.0 and Volume = 1600.0
+        current_week_data = trend[-1]
+        assert current_week_data["estimated_1rm"] == 140.0
+        assert current_week_data["volume"] == 1600.0
+        
+        # Earlier weeks should have 0.0
+        assert trend[0]["estimated_1rm"] == 0.0
+        assert trend[0]["volume"] == 0.0
+        
+        app.dependency_overrides.clear()
+        
+    finally:
+        db.DB_PATH = original_db_path
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass
+
+
 
 

@@ -11,7 +11,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Requ
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 import os
 import logging
@@ -1014,6 +1014,71 @@ def get_nutrition_alerts(date: str = None, user_id: int = Depends(get_current_us
 @app.get("/nutrition/history")
 def get_nutrition_history(days: Optional[str] = "7", user_id: int = Depends(get_current_user_id)):
     return db.get_nutrition_history(user_id=user_id, days=days)
+
+@app.get("/analytics/strength-trend")
+def get_strength_trend(exercise_key: str, weeks: int = 8, user_id: int = Depends(get_current_user_id)):
+    # 1. Fetch raw logs
+    raw_logs = db.get_strength_trend_data(user_id, exercise_key)
+    
+    # 2. Get list of last N weeks represented by Monday dates
+    today = datetime.now().date()
+    # Find the Monday of the current week
+    current_monday = today - timedelta(days=today.weekday())
+    
+    monday_dates = []
+    for i in range(weeks - 1, -1, -1):
+        monday = current_monday - timedelta(weeks=i)
+        monday_dates.append(monday.strftime("%Y-%m-%d"))
+        
+    # Initialize weekly stats mapping
+    weekly_data = {m_str: {"estimated_1rm": 0.0, "volume": 0.0} for m_str in monday_dates}
+    
+    # 3. Aggregate logs
+    for log in raw_logs:
+        date_str = log["date"]
+        try:
+            d = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+            
+        # Find the Monday of that log's week
+        log_monday = d - timedelta(days=d.weekday())
+        log_monday_str = log_monday.strftime("%Y-%m-%d")
+        
+        # Only aggregate if it falls within the target weeks
+        if log_monday_str in weekly_data:
+            reps = log["reps_counted"] or 0
+            weight = log["weight_kg"] or 0.0
+            unit = log["weight_unit"] or "kg"
+            
+            # Normalize weight to kg
+            norm_weight = weight * 0.453592 if unit == "lbs" else weight
+            
+            # Calculate set volume
+            if weight > 0.0:
+                set_volume = reps * norm_weight
+            else:
+                set_volume = reps
+                
+            # Add to total volume
+            weekly_data[log_monday_str]["volume"] += set_volume
+            
+            # Calculate 1RM (only if weight > 0 and reps > 0)
+            if weight > 0.0 and reps > 0:
+                est_1rm = norm_weight * (1.0 + reps / 30.0)
+                if est_1rm > weekly_data[log_monday_str]["estimated_1rm"]:
+                    weekly_data[log_monday_str]["estimated_1rm"] = round(est_1rm, 2)
+                    
+    # Format response: list of dicts sorted chronologically by week_start
+    result = []
+    for m_str in monday_dates:
+        result.append({
+            "week_start": m_str,
+            "estimated_1rm": round(weekly_data[m_str]["estimated_1rm"], 2),
+            "volume": round(weekly_data[m_str]["volume"], 2)
+        })
+        
+    return result
 
 @app.post("/nutrition/log")
 def log_nutrition_entry(data: models.NutritionLogRequest, user_id: int = Depends(get_current_user_id)):

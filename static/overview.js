@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
   await refreshDashboard();
   await fetchFitnessScore();
+  await initStrengthAnalytics();
 });
 
 function setupEventListeners() {
@@ -1401,3 +1402,204 @@ async function saveWeightGoalForm() {
     }
   }
 }
+
+async function initStrengthAnalytics() {
+  const select = document.getElementById('strengthExerciseSelect');
+  if (!select) return;
+
+  try {
+    const res = await fetch('/exercises');
+    if (res.ok) {
+      const list = await res.json();
+      select.innerHTML = '';
+      
+      list.forEach(ex => {
+        // Exclude hold mode or cardio keys since 1RM applies to loaded rep exercises
+        if (ex.mode !== 'hold') {
+          const opt = document.createElement('option');
+          opt.value = ex.key;
+          opt.textContent = ex.display_name;
+          select.appendChild(opt);
+        }
+      });
+      
+      if (select.options.length > 0) {
+        // Select first one by default
+        select.selectedIndex = 0;
+        await fetchStrengthTrendAndDraw();
+      }
+    }
+  } catch (e) {
+    console.error('Error initializing strength select:', e);
+  }
+
+  select.addEventListener('change', fetchStrengthTrendAndDraw);
+}
+
+async function fetchStrengthTrendAndDraw() {
+  const select = document.getElementById('strengthExerciseSelect');
+  if (!select) return;
+  const key = select.value;
+  if (!key) return;
+
+  try {
+    const res = await fetch(`/analytics/strength-trend?exercise_key=${encodeURIComponent(key)}&weeks=8`);
+    if (res.ok) {
+      const data = await res.json();
+      drawStrengthTrendChart(data);
+    }
+  } catch (e) {
+    console.error('Error fetching strength trend data:', e);
+  }
+}
+
+function drawStrengthTrendChart(data) {
+  const canvas = document.getElementById('strengthTrendChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!data || data.length === 0) {
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '14px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('No history data available for this exercise over the last 8 weeks.', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  const pL = 55, pR = 55, pT = 30, pB = 40;
+  const gW = canvas.width - pL - pR;
+  const gH = canvas.height - pT - pB;
+
+  // Max 1RM scale (Left Axis)
+  let max1RM = 0;
+  data.forEach(d => { if (d.estimated_1rm > max1RM) max1RM = d.estimated_1rm; });
+  if (max1RM < 40) max1RM = 40;
+  max1RM = Math.ceil(max1RM / 10) * 10;
+
+  // Max Volume scale (Right Axis)
+  let maxVol = 0;
+  data.forEach(d => { if (d.volume > maxVol) maxVol = d.volume; });
+  if (maxVol < 200) maxVol = 200;
+  maxVol = Math.ceil(maxVol / 100) * 100;
+
+  // Draw axis background grids
+  ctx.strokeStyle = '#2c2c2c'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pL, pT);
+  ctx.lineTo(pL, canvas.height - pB);
+  ctx.lineTo(canvas.width - pR, canvas.height - pB);
+  ctx.lineTo(canvas.width - pR, pT);
+  ctx.stroke();
+
+  // Draw Y-axis gridlines and labels
+  ctx.font = '10px Inter';
+  ctx.textBaseline = 'middle';
+  
+  for (let i = 0; i <= 4; i++) {
+    const yPos = canvas.height - pB - (i / 4) * gH;
+    
+    // Draw horizontal faint gridline
+    ctx.strokeStyle = '#1e1e2e';
+    ctx.beginPath(); ctx.moveTo(pL, yPos); ctx.lineTo(canvas.width - pR, yPos); ctx.stroke();
+
+    // Left Y label (1RM - Blue)
+    const yVal1RM = (max1RM * i) / 4;
+    ctx.fillStyle = '#29b6f6';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(yVal1RM) + ' kg', pL - 8, yPos);
+
+    // Right Y label (Volume - Amber)
+    const yValVol = (maxVol * i) / 4;
+    ctx.fillStyle = '#ffb74d';
+    ctx.textAlign = 'left';
+    ctx.fillText(Math.round(yValVol) + ' kg', canvas.width - pR + 8, yPos);
+  }
+
+  const spacing = gW / data.length;
+  const barW = spacing * 0.4;
+
+  // 1. Draw Volume Bars (translucent amber)
+  data.forEach((d, i) => {
+    const xCenter = pL + i * spacing + spacing / 2;
+    const xLeft = xCenter - barW / 2;
+
+    // Draw vertical day gridline
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(xCenter, pT);
+    ctx.lineTo(xCenter, canvas.height - pB);
+    ctx.stroke();
+
+    const vol = d.volume || 0;
+    if (vol > 0) {
+      const hVol = (vol / maxVol) * gH;
+      const yVol = canvas.height - pB - hVol;
+      ctx.fillStyle = 'rgba(255, 183, 77, 0.15)'; // Translucent amber fill
+      ctx.fillRect(xLeft, yVol, barW, hVol);
+      ctx.strokeStyle = 'rgba(255, 183, 77, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(xLeft, yVol, barW, hVol);
+
+      // Volume label text above bar
+      ctx.fillStyle = 'rgba(255, 183, 77, 0.7)';
+      ctx.font = '8px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText(Math.round(vol), xCenter, yVol - 4);
+    } else {
+      // Empty bar tick
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.fillRect(xLeft, canvas.height - pB - 4, barW, 4);
+    }
+  });
+
+  // 2. Draw 1RM Line (Blue)
+  const linePoints = [];
+  data.forEach((d, i) => {
+    const xCenter = pL + i * spacing + spacing / 2;
+    const rm = d.estimated_1rm || 0;
+    const yRM = canvas.height - pB - (rm / max1RM) * gH;
+    linePoints.push({ x: xCenter, y: yRM, val: rm, date: d.week_start });
+  });
+
+  // Connect active 1RM points (skip zeros to prevent diving to bottom)
+  const activePoints = linePoints.filter(p => p.val > 0);
+  if (activePoints.length > 1) {
+    ctx.strokeStyle = '#29b6f6';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    activePoints.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    });
+    ctx.stroke();
+  }
+
+  // 3. Draw Dots and Labels
+  linePoints.forEach(p => {
+    // Week start label (MM/DD) on X axis
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '9px Inter';
+    ctx.textAlign = 'center';
+    const parts = p.date.split('-');
+    ctx.fillText(`${parts[1]}/${parts[2]}`, p.x, canvas.height - pB + 15);
+
+    if (p.val > 0) {
+      // White dot with blue stroke
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI); ctx.fill();
+      ctx.strokeStyle = '#29b6f6'; ctx.lineWidth = 1.5; ctx.stroke();
+
+      // Bold white label above dot
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px Inter';
+      ctx.fillText(p.val.toFixed(1), p.x, p.y - 12);
+    } else {
+      // Zero state indicator on line trend
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.fillText('-', p.x, p.y - 8);
+    }
+  });
+}
+
