@@ -564,12 +564,27 @@ def get_coach_tip(request: Request, user_id: int = Depends(get_current_user_id))
             prs_str_list.append(f"{ex} ({' / '.join(details)})")
         prs_str = ", ".join(prs_str_list) if prs_str_list else "No personal records yet."
 
+        # Fetch form patterns
+        form_patterns = db.get_form_patterns(user_id)
+        patterns_str = ""
+        if form_patterns:
+            for ex_key, p_data in form_patterns.items():
+                patterns_str += f"- {p_data['display_name']}:\n"
+                if p_data["recurring_issue"]:
+                    patterns_str += f"  - Recurring issue: {p_data['recurring_issue']['rule']} in {p_data['recurring_issue']['percentage']:.0f}% of sets.\n"
+                if p_data["fatigue_pattern"]:
+                    status = "Detected fatigue" if p_data["fatigue_pattern"]["detected"] else "No significant fatigue"
+                    patterns_str += f"  - {status}: Form score goes from {p_data['fatigue_pattern']['first_half_avg']:.0f}% (early sets) to {p_data['fatigue_pattern']['second_half_avg']:.0f}% (late sets).\n"
+        else:
+            patterns_str = "- No recurring form patterns or fatigue detected yet.\n"
+
         summarized_data = (
             f"User Fitness Score Details:\n{fit_score_str}\n\n"
             f"Weight Goal Context:\n{goal_str}\n\n"
             f"Recent sessions:\n{sessions_str}\n\n"
             f"Weight trend: {weight_trend_str}\n\n"
-            f"Personal Records (PRs): {prs_str}"
+            f"Personal Records (PRs): {prs_str}\n\n"
+            f"Form & Fatigue Patterns:\n{patterns_str}"
         )
 
         prompt = (
@@ -680,12 +695,27 @@ def get_insights(request: Request, user_id: int = Depends(get_current_user_id)):
             prs_str_list.append(f"{ex} ({' / '.join(details)})")
         prs_str = ", ".join(prs_str_list) if prs_str_list else "No personal records yet."
 
+        # Fetch form patterns
+        form_patterns = db.get_form_patterns(user_id)
+        patterns_str = ""
+        if form_patterns:
+            for ex_key, p_data in form_patterns.items():
+                patterns_str += f"- {p_data['display_name']}:\n"
+                if p_data["recurring_issue"]:
+                    patterns_str += f"  - Recurring issue: {p_data['recurring_issue']['rule']} in {p_data['recurring_issue']['percentage']:.0f}% of sets.\n"
+                if p_data["fatigue_pattern"]:
+                    status = "Detected fatigue" if p_data["fatigue_pattern"]["detected"] else "No significant fatigue"
+                    patterns_str += f"  - {status}: Form score goes from {p_data['fatigue_pattern']['first_half_avg']:.0f}% (early sets) to {p_data['fatigue_pattern']['second_half_avg']:.0f}% (late sets).\n"
+        else:
+            patterns_str = "- No recurring form patterns or fatigue detected yet.\n"
+
         summarized_data = (
             f"User Fitness Score Details:\n{fit_score_str}\n\n"
             f"Weight Goal Context:\n{goal_str}\n\n"
             f"Recent sessions:\n{sessions_str}\n\n"
             f"Weight trend: {weight_trend_str}\n\n"
-            f"Personal Records (PRs): {prs_str}"
+            f"Personal Records (PRs): {prs_str}\n\n"
+            f"Form & Fatigue Patterns:\n{patterns_str}"
         )
 
         prompt = (
@@ -849,7 +879,8 @@ def log_set(data: models.SetLogRequest, user_id: int = Depends(get_current_user_
         pain_location=data.pain_location,
         duration_seconds=data.duration_seconds,
         weight_mode=data.weight_mode,
-        weight_unit=data.weight_unit
+        weight_unit=data.weight_unit,
+        form_violations=data.form_violations
     )
     return {"status": "success", "message": "Set logged successfully", "session_id": session_id}
 
@@ -1251,6 +1282,10 @@ def get_strength_trend(exercise_key: str, weeks: int = 8, user_id: int = Depends
         })
         
     return result
+
+@app.get("/analytics/form-patterns")
+def get_form_patterns_endpoint(user_id: int = Depends(get_current_user_id)):
+    return db.get_form_patterns(user_id)
 
 @app.post("/nutrition/log")
 def log_nutrition_entry(data: models.NutritionLogRequest, user_id: int = Depends(get_current_user_id)):

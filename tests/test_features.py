@@ -985,6 +985,71 @@ def test_barcode_scan_and_lookup():
         except PermissionError:
             pass
 
+def test_form_pattern_insights():
+    """Verify that form patterns compute correct statistical fatigue trends and recurring issues."""
+    import tempfile
+    import json
+    from database import db
+    from fastapi.testclient import TestClient
+    from main import app
+    import os
+    
+    temp_db_fd, temp_db_path = tempfile.mkstemp()
+    os.close(temp_db_fd)
+    
+    try:
+        original_db_path = db.DB_PATH
+        db.DB_PATH = temp_db_path
+        db.init_db()
+        
+        client = TestClient(app)
+        from main import get_current_user_id
+        app.dependency_overrides[get_current_user_id] = lambda: 1
+        
+        # 1. Create a session for the user
+        session_id = db.create_in_progress_session(user_id=1)
+        exercise_id = db.get_or_create_exercise(session_id, "squat", "Squat")
+        
+        # Log 5 sets for Squat to meet the 5+ sets threshold
+        db.log_set_to_db(exercise_id, 1, 10, 100.0, 8, 95.0, False, "", 30.0, "total", "kg", [])
+        db.log_set_to_db(exercise_id, 2, 10, 100.0, 8, 95.0, False, "", 30.0, "total", "kg", [])
+        db.log_set_to_db(exercise_id, 3, 10, 100.0, 8, 70.0, False, "", 30.0, "total", "kg", ["knees caving in"])
+        db.log_set_to_db(exercise_id, 4, 10, 100.0, 9, 70.0, False, "", 30.0, "total", "kg", ["knees caving in"])
+        db.log_set_to_db(exercise_id, 5, 10, 100.0, 9, 70.0, False, "", 30.0, "total", "kg", ["knees caving in"])
+        
+        # Call the GET /analytics/form-patterns endpoint
+        resp = client.get("/analytics/form-patterns")
+        assert resp.status_code == 200
+        patterns = resp.json()
+        
+        assert "squat" in patterns
+        squat = patterns["squat"]
+        assert squat["display_name"] == "Squat"
+        assert squat["total_sets"] == 5
+        
+        # Recurring issue checks
+        assert squat["recurring_issue"] is not None
+        assert squat["recurring_issue"]["rule"] == "knees caving in"
+        # 3 out of 5 sets = 60.0%
+        assert squat["recurring_issue"]["percentage"] == 60.0
+        
+        # Fatigue trend check
+        assert squat["fatigue_pattern"] is not None
+        assert squat["fatigue_pattern"]["detected"] is True
+        assert squat["fatigue_pattern"]["first_half_avg"] == 95.0
+        assert squat["fatigue_pattern"]["second_half_avg"] == 70.0
+        
+        app.dependency_overrides.clear()
+        
+    finally:
+        db.DB_PATH = original_db_path
+        try:
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+        except PermissionError:
+            pass
+
+
 
 
 

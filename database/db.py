@@ -3,6 +3,7 @@ import os
 import hashlib
 import secrets
 from datetime import datetime
+import json
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fitsense.db")
 
@@ -212,6 +213,12 @@ def init_db():
         cursor.execute("ALTER TABLE sets ADD COLUMN weight_unit TEXT DEFAULT 'kg';")
     except sqlite3.OperationalError:
         pass # Already migrated
+
+    try:
+        cursor.execute("ALTER TABLE sets ADD COLUMN form_violations TEXT DEFAULT '[]';")
+    except sqlite3.OperationalError:
+        pass # Already migrated
+
 
     try:
         cursor.execute("ALTER TABLE daily_nutrition ADD COLUMN saturated_fat_g REAL DEFAULT 0.0;")
@@ -726,16 +733,20 @@ def get_or_create_exercise(session_id, exercise_key, display_name):
     conn.close()
     return exercise_id
 
-def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location, duration_seconds=0.0, weight_mode='total', weight_unit='kg'):
+def log_set_to_db(exercise_id, set_number, reps, weight, rpe, form_score, pain_flag, pain_location, duration_seconds=0.0, weight_mode='total', weight_unit='kg', form_violations=None):
     conn = get_connection()
     try:
         with conn:
             cursor = conn.cursor()
             
+            violations_str = "[]"
+            if form_violations is not None:
+                violations_str = json.dumps(form_violations)
+                
             cursor.execute("""
-                INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, weight_unit, weight_mode, rpe, avg_form_score, pain_flag, pain_location, duration_seconds)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (exercise_id, set_number, reps, weight, weight_unit, weight_mode, rpe, form_score, pain_flag, pain_location, duration_seconds))
+                INSERT INTO sets (exercise_id, set_number, reps_counted, weight_kg, weight_unit, weight_mode, rpe, avg_form_score, pain_flag, pain_location, duration_seconds, form_violations)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (exercise_id, set_number, reps, weight, weight_unit, weight_mode, rpe, form_score, pain_flag, pain_location, duration_seconds, violations_str))
             
             # Update exercise summary stats
             cursor.execute("SELECT reps_counted, avg_form_score FROM sets WHERE exercise_id = ?", (exercise_id,))
@@ -971,4 +982,124 @@ def get_strength_trend_data(user_id: int, exercise_key: str):
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+def get_form_patterns(user_id: int):
+    from datetime import datetime, timedelta
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    date_limit = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    
+    cursor.execute("""
+        SELECT 
+            e.exercise_key,
+            e.exercise_name AS display_name,
+            st.set_number,
+            st.avg_form_score,
+            st.form_violations,
+            s.date,
+            e.session_id
+        FROM sets st
+        JOIN exercises e ON st.exercise_id = e.exercise_id
+        JOIN sessions s ON e.session_id = s.session_id
+        WHERE s.user_id = ? AND st.timestamp >= ?
+        ORDER BY e.exercise_key, e.session_id, st.set_number
+    """, (user_id, date_limit))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    exercise_sets = {}
+    for r in rows:
+        key = r["exercise_key"]
+        if key not in exercise_sets:
+            exercise_sets[key] = {
+                "display_name": r["display_name"],
+                "sets": []
+            }
+        exercise_sets[key]["sets"].append(r)
+        
+    results = {}
+    for key, data in exercise_sets.items():
+        sets = data["sets"]
+        display_name = data["display_name"]
+        
+        if len(sets) < 5:
+            continue
+            
+        rule_counts = {}
+        for s in sets:
+            violations_str = s["form_violations"]
+            if violations_str:
+                try:
+                    violations = json.loads(violations_str)
+                    if isinstance(violations, list) and len(violations) > 0:
+                        for v in set(violations):
+                            rule_counts[v] = rule_counts.get(v, 0) + 1
+                except Exception:
+                    pass
+                    
+        most_common_rule = None
+        most_common_pct = 0.0
+        if rule_counts:
+            sorted_rules = sorted(rule_counts.items(), key=lambda x: x[1], reverse=True)
+            top_rule, count = sorted_rules[0]
+            most_common_rule = top_rule
+            most_common_pct = (count / len(sets)) * 100.0
+            
+        session_groups = {}
+        for s in sets:
+            sess_id = s["session_id"]
+            if sess_id not in session_groups:
+                session_groups[sess_id] = []
+            session_groups[sess_id].append(s)
+            
+        total_first_half_score = 0.0
+        total_first_half_count = 0
+        total_second_half_score = 0.0
+        total_second_half_count = 0
+        
+        for sess_id, s_list in session_groups.items():
+            s_list.sort(key=lambda x: x["set_number"])
+            n = len(s_list)
+            if n < 2:
+                continue
+            mid = n // 2
+            first_half = s_list[:mid]
+            second_half = s_list[mid:]
+            
+            for s in first_half:
+                if s["avg_form_score"] is not None:
+                    total_first_half_score += s["avg_form_score"]
+                    total_first_half_count += 1
+            for s in second_half:
+                if s["avg_form_score"] is not None:
+                    total_second_half_score += s["avg_form_score"]
+                    total_second_half_count += 1
+                    
+        fatigue_detected = False
+        avg_first_half = 0.0
+        avg_second_half = 0.0
+        
+        if total_first_half_count > 0 and total_second_half_count > 0:
+            avg_first_half = total_first_half_score / total_first_half_count
+            avg_second_half = total_second_half_score / total_second_half_count
+            if avg_first_half - avg_second_half >= 3.0:
+                fatigue_detected = True
+                
+        results[key] = {
+            "display_name": display_name,
+            "total_sets": len(sets),
+            "recurring_issue": {
+                "rule": most_common_rule,
+                "percentage": round(most_common_pct, 1)
+            } if most_common_rule else None,
+            "fatigue_pattern": {
+                "detected": fatigue_detected,
+                "first_half_avg": round(avg_first_half, 1),
+                "second_half_avg": round(avg_second_half, 1)
+            } if (total_first_half_count > 0 and total_second_half_count > 0) else None
+        }
+        
+    return results
+
 

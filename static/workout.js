@@ -18,6 +18,7 @@ let sessionReps = 0;
 let sessionAvgScore = 100;
 let currentSessionId = null;
 let isHoldMode = false;
+let currentFormViolations = new Set();
 let workoutStartTime = 0;
 let captureCanvas = null;
 
@@ -259,6 +260,11 @@ function connectWebSocket() {
 
     feedbackContainer.innerHTML = '';
     if (data.feedback && data.feedback.length > 0) {
+      data.feedback.forEach(fb => {
+        if (fb.severity === 'RED' || fb.severity === 'YELLOW') {
+          currentFormViolations.add(fb.message);
+        }
+      });
       data.feedback.slice(-3).forEach(fb => {
         const badge = document.createElement('div');
         badge.className = `feedback-badge ${getBadgeClass(fb.severity)}`;
@@ -368,6 +374,7 @@ function discardSet() {
 function resetSetStats() {
   lastRepsCounted = 0;
   lastAvgFormScore = 100;
+  currentFormViolations.clear();
   repCountEl.textContent = isHoldMode ? '00:00' : '0';
   stageLabelEl.textContent = '--';
   formScorePercentEl.textContent = '100%';
@@ -402,7 +409,8 @@ async function saveSet() {
     avg_form_score: lastAvgFormScore,
     pain_flag: painCheckbox.checked,
     pain_location: painCheckbox.checked ? painLocationInput.value : '',
-    duration_seconds: duration
+    duration_seconds: duration,
+    form_violations: Array.from(currentFormViolations)
   };
 
   try {

@@ -626,6 +626,7 @@ async function refreshDashboard() {
     await fetchWeightHistoryAndDraw();
     await fetchNutritionHistoryAndDraw();
     await checkWeeklyWeighIn(data.profile, data.current_weight);
+    await fetchFormInsights();
   } catch (e) {
     console.error('refreshDashboard error:', e);
   }
@@ -2009,4 +2010,71 @@ function drawStrengthTrendChart(data) {
     }
   });
 }
+
+async function fetchFormInsights() {
+  const container = document.getElementById('formInsightsContainer');
+  if (!container) return;
+
+  try {
+    const res = await fetch('/analytics/form-patterns');
+    if (!res.ok) return;
+    const patterns = await res.json();
+
+    const keys = Object.keys(patterns);
+    if (keys.length === 0) {
+      container.innerHTML = `
+        <p class="coach-placeholder-text" style="text-align: center; margin: auto; padding: 15px; font-size: 0.85rem; color: var(--text-muted);">
+          No form insights compiled yet. Log 5+ sets for an exercise using camera-based tracking to see patterns.
+        </p>
+      `;
+      container.style.justifyContent = 'center';
+      container.style.alignItems = 'center';
+      return;
+    }
+
+    container.innerHTML = '';
+    container.style.justifyContent = 'flex-start';
+    container.style.alignItems = 'stretch';
+
+    keys.forEach(key => {
+      const data = patterns[key];
+      const card = document.createElement('div');
+      card.style.background = 'rgba(255,255,255,0.02)';
+      card.style.border = '1px solid rgba(255,255,255,0.05)';
+      card.style.borderRadius = '6px';
+      card.style.padding = '10px 12px';
+      card.style.width = '100%';
+      card.style.boxSizing = 'border-box';
+      
+      let html = `<div style="font-weight: 700; color: #89b4fa; font-size: 0.9rem; margin-bottom: 6px;">💪 ${data.display_name}</div>`;
+      
+      let issues = [];
+      if (data.recurring_issue) {
+        issues.push(`⚠️ Recurring issue: <strong>${data.recurring_issue.rule}</strong> flagged in <strong>${data.recurring_issue.percentage.toFixed(0)}%</strong> of sets this month.`);
+      }
+      
+      if (data.fatigue_pattern && data.fatigue_pattern.detected) {
+        issues.push(`📉 Fatigue detected: Form score drops from <strong>${data.fatigue_pattern.first_half_avg.toFixed(0)}%</strong> in early sets to <strong>${data.fatigue_pattern.second_half_avg.toFixed(0)}%</strong> in later sets.`);
+      }
+
+      if (issues.length === 0) {
+        issues.push(`✨ Form remains clean and consistent across all ${data.total_sets} sets logged.`);
+      }
+
+      html += `<div style="font-size: 0.82rem; color: #a6adc8; line-height: 1.4; display: flex; flex-direction: column; gap: 4px;">`;
+      issues.forEach(issue => {
+        html += `<div>${issue}</div>`;
+      });
+      html += `</div>`;
+      
+      card.innerHTML = html;
+      container.appendChild(card);
+    });
+
+  } catch (error) {
+    console.error('Error fetching form insights:', error);
+  }
+}
+window.fetchFormInsights = fetchFormInsights;
+
 

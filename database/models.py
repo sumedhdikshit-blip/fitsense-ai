@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 
 class SetLogRequest(BaseModel):
     session_id: Optional[int] = None
@@ -14,6 +14,7 @@ class SetLogRequest(BaseModel):
     pain_flag: bool = False
     pain_location: Optional[str] = Field("", max_length=100)
     duration_seconds: float = 0.0
+    form_violations: Optional[List[str]] = None
 
 class SessionEndRequest(BaseModel):
     session_id: int
