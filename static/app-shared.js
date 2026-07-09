@@ -65,6 +65,7 @@ function injectNav(activePage) {
   if (placeholder) {
     placeholder.outerHTML = navHtml;
     setupTheme();
+    injectChatbot();
   }
 
   // Logout handler
@@ -226,3 +227,211 @@ function getBadgeClass(severity) {
   if (severity === 'YELLOW') return 'badge-yellow';
   return 'badge-green';
 }
+
+function injectChatbot() {
+  // Avoid duplicate injection
+  if (document.getElementById('fitsenseChatWidget')) return;
+
+  const widget = document.createElement('div');
+  widget.id = 'fitsenseChatWidget';
+  widget.className = 'fitsense-chat-widget';
+  
+  widget.innerHTML = `
+    <div class="fitsense-chat-bubble" id="fitsenseChatBubble" title="Chat with FitSense Coach">
+      <svg viewBox="0 0 24 24">
+        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+      </svg>
+    </div>
+    <div class="fitsense-chat-panel" id="fitsenseChatPanel">
+      <div class="fitsense-chat-header">
+        <div class="fitsense-chat-header-title">
+          <div class="fitsense-chat-status-dot"></div>
+          <span>FitSense Coach</span>
+        </div>
+        <button class="fitsense-chat-close" id="fitsenseChatClose" title="Minimize">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+        </button>
+      </div>
+      <div class="fitsense-chat-messages" id="fitsenseChatMessages"></div>
+      <div class="fitsense-chat-input-area">
+        <input type="text" class="fitsense-chat-input" id="fitsenseChatInput" placeholder="Ask about fitness, nutrition, goals..." autocomplete="off">
+        <button class="fitsense-chat-send-btn" id="fitsenseChatSendBtn" title="Send Message">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(widget);
+
+  const bubble = document.getElementById('fitsenseChatBubble');
+  const panel = document.getElementById('fitsenseChatPanel');
+  const closeBtn = document.getElementById('fitsenseChatClose');
+  const input = document.getElementById('fitsenseChatInput');
+  const sendBtn = document.getElementById('fitsenseChatSendBtn');
+  const messagesContainer = document.getElementById('fitsenseChatMessages');
+
+  let history = [];
+  try {
+    const storedHistory = sessionStorage.getItem('fitsense_chat_history');
+    if (storedHistory) {
+      history = JSON.parse(storedHistory);
+    }
+  } catch (e) {
+    console.error('Error loading chat history from sessionStorage', e);
+  }
+
+  // Restore open state
+  const isOpen = sessionStorage.getItem('fitsense_chat_open') === 'true';
+  if (isOpen) {
+    panel.style.display = 'flex';
+    panel.classList.add('open');
+  }
+
+  // Render conversation history
+  function renderMessages() {
+    messagesContainer.innerHTML = '';
+    
+    // Welcome message
+    const welcomeMsg = document.createElement('div');
+    welcomeMsg.className = 'fitsense-chat-msg fitsense-chat-msg-bot';
+    welcomeMsg.textContent = "Hi! I am your FitSense Coach. Ask me any questions about fitness, nutrition, workouts, or goals!";
+    messagesContainer.appendChild(welcomeMsg);
+
+    history.forEach(msg => {
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `fitsense-chat-msg fitsense-chat-msg-${msg.role === 'user' ? 'user' : 'bot'}`;
+      msgDiv.textContent = msg.content;
+      messagesContainer.appendChild(msgDiv);
+    });
+
+    scrollToBottom();
+  }
+
+  function scrollToBottom() {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+
+  // Toggle open
+  bubble.onclick = (e) => {
+    e.stopPropagation();
+    const willOpen = !panel.classList.contains('open');
+    if (willOpen) {
+      panel.style.display = 'flex';
+      // Force repaint to allow transition
+      panel.offsetHeight;
+      panel.classList.add('open');
+      sessionStorage.setItem('fitsense_chat_open', 'true');
+      input.focus();
+      scrollToBottom();
+    } else {
+      panel.classList.remove('open');
+      sessionStorage.setItem('fitsense_chat_open', 'false');
+      setTimeout(() => {
+        if (!panel.classList.contains('open')) {
+          panel.style.display = 'none';
+        }
+      }, 200);
+    }
+  };
+
+  // Close/Minimize
+  closeBtn.onclick = (e) => {
+    e.stopPropagation();
+    panel.classList.remove('open');
+    sessionStorage.setItem('fitsense_chat_open', 'false');
+    setTimeout(() => {
+      if (!panel.classList.contains('open')) {
+        panel.style.display = 'none';
+      }
+    }, 200);
+  };
+
+  // Message sending
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+    
+    // Add User Message
+    history.push({ role: 'user', content: text });
+    sessionStorage.setItem('fitsense_chat_history', JSON.stringify(history));
+    
+    // Render the user message immediately
+    const userMsgDiv = document.createElement('div');
+    userMsgDiv.className = 'fitsense-chat-msg fitsense-chat-msg-user';
+    userMsgDiv.textContent = text;
+    messagesContainer.appendChild(userMsgDiv);
+    scrollToBottom();
+
+    // Show Typing Indicator
+    const typingIndicator = document.createElement('div');
+    typingIndicator.id = 'fitsenseChatTyping';
+    typingIndicator.className = 'fitsense-chat-typing';
+    typingIndicator.innerHTML = `
+      <div class="fitsense-chat-typing-dot"></div>
+      <div class="fitsense-chat-typing-dot"></div>
+      <div class="fitsense-chat-typing-dot"></div>
+    `;
+    messagesContainer.appendChild(typingIndicator);
+    scrollToBottom();
+
+    try {
+      const response = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      });
+
+      // Remove typing indicator
+      const currentIndicator = document.getElementById('fitsenseChatTyping');
+      if (currentIndicator) currentIndicator.remove();
+
+      if (!response.ok) {
+        throw new Error('API request failed');
+      }
+
+      const data = await response.json();
+      
+      // Add Bot Message
+      history.push({ role: 'assistant', content: data.reply });
+      
+      // Truncate locally to match server-side history trimming (max 6 messages)
+      if (history.length > 6) {
+        history = history.slice(-6);
+      }
+      sessionStorage.setItem('fitsense_chat_history', JSON.stringify(history));
+
+      // Append bot message to UI
+      const botMsgDiv = document.createElement('div');
+      botMsgDiv.className = 'fitsense-chat-msg fitsense-chat-msg-bot';
+      botMsgDiv.textContent = data.reply;
+      messagesContainer.appendChild(botMsgDiv);
+      scrollToBottom();
+
+    } catch (err) {
+      console.error('Chat failed:', err);
+      // Remove typing indicator if it wasn't already removed
+      const currentIndicator = document.getElementById('fitsenseChatTyping');
+      if (currentIndicator) currentIndicator.remove();
+
+      // Show Error Bubble
+      const errorMsgDiv = document.createElement('div');
+      errorMsgDiv.className = 'fitsense-chat-msg fitsense-chat-msg-error';
+      errorMsgDiv.textContent = "Sorry, I couldn't process that — try again.";
+      messagesContainer.appendChild(errorMsgDiv);
+      scrollToBottom();
+    }
+  }
+
+  sendBtn.onclick = sendMessage;
+  input.onkeypress = (e) => {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
+  };
+
+  renderMessages();
+}
+

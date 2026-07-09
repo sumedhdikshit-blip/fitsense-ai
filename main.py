@@ -789,6 +789,113 @@ def get_insights(request: Request, user_id: int = Depends(get_current_user_id)):
         logger.error(f"Error calling Groq API for insights: {e}", exc_info=True)
         return {"error": "Insights unavailable right now due to service timeout or connection failure"}
 
+@app.post("/chat")
+@limiter.limit("10/minute")
+def chat_with_coach(
+    request: Request,
+    data: models.ChatRequest,
+    user_id: int = Depends(get_current_user_id)
+):
+    from ai.coach_client import get_groq_client
+    from datetime import datetime
+    
+    user_message = data.message.strip()
+    if not user_message:
+        raise HTTPException(status_code=400, detail="Message content cannot be empty")
+        
+    try:
+        profile = db.get_profile(user_id) or {}
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        nutrition = db.get_nutrition_data(user_id, today_str) or {}
+        
+        goal_type = profile.get("goal_type") or "Not set"
+        target_weight = profile.get("target_weight_kg") or "Not set"
+        current_weight = profile.get("weight_kg") or "Not set"
+        starting_weight = profile.get("starting_weight_kg") or "Not set"
+        pace = profile.get("pace") or "Not set"
+        muscle_focus = profile.get("muscle_focus") or "Not set"
+        maintenance_focus = profile.get("maintenance_focus") or "Not set"
+        
+        calories_consumed = nutrition.get("calories_consumed", 0.0)
+        protein_g = nutrition.get("protein_g", 0.0)
+        carbs_g = nutrition.get("carbs_g", 0.0)
+        fat_g = nutrition.get("fat_g", 0.0)
+        
+        user_context = (
+            f"User Profile Stats:\n"
+            f"- Current Weight: {current_weight} kg\n"
+            f"- Goal: {goal_type}\n"
+            f"- Target Weight: {target_weight} kg\n"
+            f"- Starting Weight: {starting_weight} kg\n"
+            f"- Pace: {pace}\n"
+            f"- Muscle Preservation/Focus: {muscle_focus}\n"
+            f"- Maintenance Focus: {maintenance_focus}\n"
+            f"Today's Macro/Calorie Logs:\n"
+            f"- Calories: {calories_consumed} kcal\n"
+            f"- Protein: {protein_g} g\n"
+            f"- Carbs: {carbs_g} g\n"
+            f"- Fat: {fat_g} g"
+        )
+        
+        system_prompt = (
+            f"You are a helpful, certified personal trainer and nutrition coach. "
+            f"You have access to the user's data below:\n"
+            f"{user_context}\n\n"
+            f"Guidelines:\n"
+            f"1. Use the user's personal stats, logs, or goals ONLY if their question relates to their progress, "
+            f"goals, weights, logged items, or macros. Otherwise, answer general questions generally without "
+            f"mentioning their personal stats (e.g. if they ask 'how much protein in eggs?' or 'what is a good quad exercise?').\n"
+            f"2. Keep replies conversational, encouraging, and focused on fitness, nutrition, and wellness topics.\n"
+            f"3. Politely decline any questions unrelated to fitness, nutrition, and wellness (e.g. coding help, unrelated trivia, politics) "
+            f"by saying: 'I can only help you with fitness, nutrition, and wellness questions. Let me know if you have questions about your goals or workouts!'\n"
+            f"4. Keep answers relatively concise (maximum 3-4 sentences/short paragraphs) so it fits nicely in a small chat widget."
+        )
+        
+        history = request.session.get("chat_history", [])
+        if not isinstance(history, list):
+            history = []
+            
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in history:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        messages.append({"role": "user", "content": user_message})
+        
+        client = get_groq_client()
+        chat_completion = client.chat.completions.create(
+            messages=messages,
+            model="llama-3.1-8b-instant",
+            timeout=5.0,
+        )
+        
+        reply = chat_completion.choices[0].message.content.strip()
+        
+        history.append({"role": "user", "content": user_message})
+        history.append({"role": "assistant", "content": reply})
+        
+        trimmed_history = []
+        for msg in history[-6:]:
+            trimmed_history.append({
+                "role": msg["role"],
+                "content": msg["content"][:400]
+            })
+            
+        request.session["chat_history"] = trimmed_history
+        
+        return {"reply": reply}
+        
+    except ValueError as val_err:
+        logger.error(f"Configuration error for Groq client: {val_err}")
+        raise HTTPException(
+            status_code=400,
+            detail="Chatbot configuration is missing on the server. Please check GROQ_API_KEY."
+        )
+    except Exception as e:
+        logger.error(f"Error calling Groq API for chatbot: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Sorry, I couldn't process that — try again."
+        )
+
 @app.get("/exercises")
 def get_exercises():
     return [

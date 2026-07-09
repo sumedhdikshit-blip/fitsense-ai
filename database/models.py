@@ -101,4 +101,9 @@ class BarcodeScanRequest(BaseModel):
     image_base64: str
 
 
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
+
+
+
 

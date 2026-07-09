@@ -1300,5 +1300,266 @@ body.light-theme #strengthTrendChart {
   filter: invert(1) hue-rotate(180deg);
 }
 
+/* Floating Chatbot Widget Styling */
+.fitsense-chat-widget {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 10000;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.fitsense-chat-bubble {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-color), #00e676);
+  box-shadow: 0 4px 20px rgba(0, 200, 83, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease;
+}
+
+.fitsense-chat-bubble:hover {
+  transform: scale(1.08) translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0, 200, 83, 0.45);
+}
+
+.fitsense-chat-bubble svg {
+  width: 26px;
+  height: 26px;
+  fill: currentColor;
+}
+
+.fitsense-chat-panel {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  width: 380px;
+  height: 520px;
+  max-height: calc(100vh - 120px);
+  max-width: calc(100vw - 48px);
+  border-radius: var(--border-radius);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 10000;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: translateY(10px);
+  opacity: 0;
+  backdrop-filter: blur(8px);
+}
+
+.fitsense-chat-panel.open {
+  display: flex;
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.fitsense-chat-header {
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--panel-bg), rgba(255,255,255,0.02));
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fitsense-chat-header-title {
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fitsense-chat-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-green);
+  box-shadow: 0 0 8px var(--color-green);
+}
+
+.fitsense-chat-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.fitsense-chat-close:hover {
+  background-color: var(--pill-hover-bg);
+  color: var(--text-main);
+}
+
+.fitsense-chat-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.fitsense-chat-messages {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar for message history */
+.fitsense-chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+.fitsense-chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+.fitsense-chat-messages::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+.fitsense-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.fitsense-chat-msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  animation: chatMsgFadeIn 0.25s ease forwards;
+  word-wrap: break-word;
+}
+
+@keyframes chatMsgFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fitsense-chat-msg-user {
+  align-self: flex-end;
+  background-color: var(--accent-color);
+  color: #ffffff;
+  border-radius: 16px 16px 4px 16px;
+  box-shadow: 0 2px 8px rgba(0, 200, 83, 0.15);
+}
+
+.fitsense-chat-msg-bot {
+  align-self: flex-start;
+  background-color: var(--pill-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  border-radius: 16px 16px 16px 4px;
+}
+
+.fitsense-chat-msg-error {
+  align-self: center;
+  background-color: rgba(255, 23, 68, 0.1);
+  border: 1px solid rgba(255, 23, 68, 0.25);
+  color: var(--color-red);
+  font-size: 13px;
+  border-radius: 8px;
+  text-align: center;
+  max-width: 90%;
+  padding: 8px 12px;
+}
+
+.fitsense-chat-input-area {
+  padding: 12px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: var(--panel-bg);
+}
+
+.fitsense-chat-input {
+  flex-grow: 1;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--input-color);
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.fitsense-chat-input:focus {
+  border-color: var(--accent-color);
+}
+
+.fitsense-chat-input::placeholder {
+  color: var(--input-placeholder);
+}
+
+.fitsense-chat-send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--accent-color);
+  border: none;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s, background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.fitsense-chat-send-btn:hover {
+  transform: scale(1.05);
+  background-color: #00e676;
+}
+
+.fitsense-chat-send-btn svg {
+  width: 18px;
+  height: 18px;
+  margin-left: 2px;
+}
+
+/* Typing Indicator */
+.fitsense-chat-typing {
+  align-self: flex-start;
+  background-color: var(--pill-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px 16px 16px 4px;
+  padding: 12px 16px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.fitsense-chat-typing-dot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--text-muted);
+  border-radius: 50%;
+  animation: chatTypingDot 1.4s infinite ease-in-out both;
+}
+
+.fitsense-chat-typing-dot:nth-child(1) { animation-delay: -0.32s; }
+.fitsense-chat-typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes chatTypingDot {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1.0); }
+}
+
+
 
 
