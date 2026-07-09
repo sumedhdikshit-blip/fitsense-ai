@@ -237,7 +237,8 @@ function injectChatbot() {
   widget.className = 'fitsense-chat-widget';
   
   widget.innerHTML = `
-    <div class="fitsense-chat-bubble" id="fitsenseChatBubble" title="Chat with FitSense Coach">
+    <div class="fitsense-chat-bubble" id="fitsenseChatBubble" title="Chat with FitSense Assistant">
+      <div class="fitsense-chat-badge" id="fitsenseChatBadge"></div>
       <svg viewBox="0 0 24 24">
         <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
       </svg>
@@ -245,8 +246,13 @@ function injectChatbot() {
     <div class="fitsense-chat-panel" id="fitsenseChatPanel">
       <div class="fitsense-chat-header">
         <div class="fitsense-chat-header-title">
-          <div class="fitsense-chat-status-dot"></div>
-          <span>FitSense Coach</span>
+          <div class="fitsense-chat-bot-icon">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 8h-1.18c-.48-2.31-2.51-4-4.82-4s-4.34 1.69-4.82 4H7c-1.1 0-2 .9-2 2v3c0 1.1.9 2 2 2h.18c.48 2.31 2.51 4 4.82 4s4.34-1.69 4.82-4H17c1.1 0 2-.9 2-2v-3c0-1.1-.9-2-2-2zm-7 10c-2.21 0-4-1.79-4-4h8c0 2.21-1.79 4-4 4zm4-6c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-8 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>
+          </div>
+          <div class="fitsense-chat-header-text">
+            <span class="fitsense-chat-title-main">FitSense Assistant</span>
+            <span class="fitsense-chat-title-sub"><span class="fitsense-chat-status-dot"></span>Online</span>
+          </div>
         </div>
         <button class="fitsense-chat-close" id="fitsenseChatClose" title="Minimize">
           <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
@@ -288,6 +294,12 @@ function injectChatbot() {
     panel.classList.add('open');
   }
 
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
   // Render conversation history
   function renderMessages() {
     messagesContainer.innerHTML = '';
@@ -295,13 +307,27 @@ function injectChatbot() {
     // Welcome message
     const welcomeMsg = document.createElement('div');
     welcomeMsg.className = 'fitsense-chat-msg fitsense-chat-msg-bot';
-    welcomeMsg.textContent = "Hi! I am your FitSense Coach. Ask me any questions about fitness, nutrition, workouts, or goals!";
+    welcomeMsg.innerHTML = `
+      <div class="fitsense-chat-avatar">
+        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 8h-1.18c-.48-2.31-2.51-4-4.82-4s-4.34 1.69-4.82 4H7c-1.1 0-2 .9-2 2v3c0 1.1.9 2 2 2h.18c.48 2.31 2.51 4 4.82 4s4.34-1.69 4.82-4H17c1.1 0 2-.9 2-2v-3c0-1.1-.9-2-2-2zm-7 10c-2.21 0-4-1.79-4-4h8c0 2.21-1.79 4-4 4zm4-6c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-8 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>
+      </div>
+      <div class="fitsense-chat-msg-text">Hi! I am your FitSense Coach. Ask me any questions about fitness, nutrition, workouts, or goals!</div>
+    `;
     messagesContainer.appendChild(welcomeMsg);
 
     history.forEach(msg => {
       const msgDiv = document.createElement('div');
       msgDiv.className = `fitsense-chat-msg fitsense-chat-msg-${msg.role === 'user' ? 'user' : 'bot'}`;
-      msgDiv.textContent = msg.content;
+      if (msg.role === 'user') {
+        msgDiv.innerHTML = `<div class="fitsense-chat-msg-text">${escapeHtml(msg.content)}</div>`;
+      } else {
+        msgDiv.innerHTML = `
+          <div class="fitsense-chat-avatar">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 8h-1.18c-.48-2.31-2.51-4-4.82-4s-4.34 1.69-4.82 4H7c-1.1 0-2 .9-2 2v3c0 1.1.9 2 2 2h.18c.48 2.31 2.51 4 4.82 4s4.34-1.69 4.82-4H17c1.1 0 2-.9 2-2v-3c0-1.1-.9-2-2-2zm-7 10c-2.21 0-4-1.79-4-4h8c0 2.21-1.79 4-4 4zm4-6c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-8 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>
+          </div>
+          <div class="fitsense-chat-msg-text">${escapeHtml(msg.content)}</div>
+        `;
+      }
       messagesContainer.appendChild(msgDiv);
     });
 
@@ -324,6 +350,9 @@ function injectChatbot() {
       sessionStorage.setItem('fitsense_chat_open', 'true');
       input.focus();
       scrollToBottom();
+      // Hide badge
+      const badge = document.getElementById('fitsenseChatBadge');
+      if (badge) badge.classList.remove('visible');
     } else {
       panel.classList.remove('open');
       sessionStorage.setItem('fitsense_chat_open', 'false');
@@ -331,7 +360,7 @@ function injectChatbot() {
         if (!panel.classList.contains('open')) {
           panel.style.display = 'none';
         }
-      }, 200);
+      }, 220);
     }
   };
 
@@ -344,7 +373,7 @@ function injectChatbot() {
       if (!panel.classList.contains('open')) {
         panel.style.display = 'none';
       }
-    }, 200);
+    }, 220);
   };
 
   // Message sending
@@ -361,7 +390,7 @@ function injectChatbot() {
     // Render the user message immediately
     const userMsgDiv = document.createElement('div');
     userMsgDiv.className = 'fitsense-chat-msg fitsense-chat-msg-user';
-    userMsgDiv.textContent = text;
+    userMsgDiv.innerHTML = `<div class="fitsense-chat-msg-text">${escapeHtml(text)}</div>`;
     messagesContainer.appendChild(userMsgDiv);
     scrollToBottom();
 
@@ -370,9 +399,14 @@ function injectChatbot() {
     typingIndicator.id = 'fitsenseChatTyping';
     typingIndicator.className = 'fitsense-chat-typing';
     typingIndicator.innerHTML = `
-      <div class="fitsense-chat-typing-dot"></div>
-      <div class="fitsense-chat-typing-dot"></div>
-      <div class="fitsense-chat-typing-dot"></div>
+      <div class="fitsense-chat-avatar">
+        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 8h-1.18c-.48-2.31-2.51-4-4.82-4s-4.34 1.69-4.82 4H7c-1.1 0-2 .9-2 2v3c0 1.1.9 2 2 2h.18c.48 2.31 2.51 4 4.82 4s4.34-1.69 4.82-4H17c1.1 0 2-.9 2-2v-3c0-1.1-.9-2-2-2zm-7 10c-2.21 0-4-1.79-4-4h8c0 2.21-1.79 4-4 4zm4-6c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-8 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>
+      </div>
+      <div class="fitsense-chat-typing-dots">
+        <div class="fitsense-chat-typing-dot"></div>
+        <div class="fitsense-chat-typing-dot"></div>
+        <div class="fitsense-chat-typing-dot"></div>
+      </div>
     `;
     messagesContainer.appendChild(typingIndicator);
     scrollToBottom();
@@ -406,9 +440,20 @@ function injectChatbot() {
       // Append bot message to UI
       const botMsgDiv = document.createElement('div');
       botMsgDiv.className = 'fitsense-chat-msg fitsense-chat-msg-bot';
-      botMsgDiv.textContent = data.reply;
+      botMsgDiv.innerHTML = `
+        <div class="fitsense-chat-avatar">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 8h-1.18c-.48-2.31-2.51-4-4.82-4s-4.34 1.69-4.82 4H7c-1.1 0-2 .9-2 2v3c0 1.1.9 2 2 2h.18c.48 2.31 2.51 4 4.82 4s4.34-1.69 4.82-4H17c1.1 0 2-.9 2-2v-3c0-1.1-.9-2-2-2zm-7 10c-2.21 0-4-1.79-4-4h8c0 2.21-1.79 4-4 4zm4-6c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-8 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>
+        </div>
+        <div class="fitsense-chat-msg-text">${escapeHtml(data.reply)}</div>
+      `;
       messagesContainer.appendChild(botMsgDiv);
       scrollToBottom();
+
+      // Show unread badge if user closed panel while loading
+      if (!panel.classList.contains('open')) {
+        const badge = document.getElementById('fitsenseChatBadge');
+        if (badge) badge.classList.add('visible');
+      }
 
     } catch (err) {
       console.error('Chat failed:', err);
@@ -422,6 +467,11 @@ function injectChatbot() {
       errorMsgDiv.textContent = "Sorry, I couldn't process that — try again.";
       messagesContainer.appendChild(errorMsgDiv);
       scrollToBottom();
+      
+      if (!panel.classList.contains('open')) {
+        const badge = document.getElementById('fitsenseChatBadge');
+        if (badge) badge.classList.add('visible');
+      }
     }
   }
 
