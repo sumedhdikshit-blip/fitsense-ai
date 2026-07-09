@@ -46,14 +46,14 @@ function injectNav(activePage) {
           <div class="avatar" id="avatarBadge">A</div>
           <span id="username">Athlete</span>
         </div>
-        <button id="themeToggleBtn" class="btn btn-secondary" style="margin-left:10px; padding: 6px; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-main); cursor: pointer;" title="Toggle Light/Dark Mode">
-          <!-- Moon Icon (Dark Mode active) -->
-          <svg id="themeIconMoon" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        <button id="themeToggleBtn" class="btn btn-secondary" style="margin-left:10px; padding: 0; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--border-color); background: var(--panel-bg); cursor: pointer; transition: transform 0.15s ease, background-color 0.15s ease;" title="Toggle Light/Dark Mode">
+          <!-- Sun Icon (Dark Mode active - tap to go light) -->
+          <svg id="themeIconSun" class="icon" fill="currentColor" viewBox="0 0 24 24" style="width: 18px; height: 18px; color: #f5a623; display: block;">
+            <path d="M12 7a5 5 0 100 10 5 5 0 000-10zM12 3.5a.75.75 0 01.75.75v1a.75.75 0 01-1.5 0v-1a.75.75 0 01.75-.75zm0 13.5a.75.75 0 01.75.75v1a.75.75 0 01-1.5 0v-1a.75.75 0 01.75-.75zm8.25-6.5a.75.75 0 01-.75.75h-1a.75.75 0 010-1.5h1a.75.75 0 01.75.75zM4.75 11.25a.75.75 0 01-.75.75h-1a.75.75 0 010-1.5h1a.75.75 0 01.75.75zm13.136-5.886a.75.75 0 010 1.06l-.707.707a.75.75 0 11-1.06-1.06l.707-.707a.75.75 0 011.06 0zM6.879 16.06a.75.75 0 010 1.06l-.707.707a.75.75 0 11-1.06-1.06l.707-.707a.75.75 0 011.06 0zm11.313 0a.75.75 0 011.06 0l.707.707a.75.75 0 11-1.06 1.06l-.707-.707a.75.75 0 010-1.06zM5.818 5.364a.75.75 0 011.06 0l.707.707a.75.75 0 11-1.06 1.06l-.707-.707a.75.75 0 010-1.06z" />
           </svg>
-          <!-- Sun Icon (Light Mode active) -->
-          <svg id="themeIconSun" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; display: none;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 7a5 5 0 100 10 5 5 0 000-10z" />
+          <!-- Moon Icon (Light Mode active - tap to go dark) -->
+          <svg id="themeIconMoon" class="icon" fill="currentColor" viewBox="0 0 24 24" style="width: 18px; height: 18px; color: #8b9dc3; display: none;">
+            <path d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z" />
           </svg>
         </button>
         <button class="btn btn-danger btn-sm" id="logoutBtn" style="margin-left:10px;">Log Out</button>
@@ -95,12 +95,12 @@ function setupTheme() {
   const currentTheme = localStorage.getItem('theme') || 'dark';
   if (currentTheme === 'light') {
     document.body.classList.add('light-theme');
-    if (moonIcon) moonIcon.style.display = 'none';
-    if (sunIcon) sunIcon.style.display = 'block';
-  } else {
-    document.body.classList.remove('light-theme');
     if (moonIcon) moonIcon.style.display = 'block';
     if (sunIcon) sunIcon.style.display = 'none';
+  } else {
+    document.body.classList.remove('light-theme');
+    if (moonIcon) moonIcon.style.display = 'none';
+    if (sunIcon) sunIcon.style.display = 'block';
   }
 
   // Toggle handler
@@ -109,13 +109,13 @@ function setupTheme() {
     if (isLight) {
       document.body.classList.remove('light-theme');
       localStorage.setItem('theme', 'dark');
-      if (moonIcon) moonIcon.style.display = 'block';
-      if (sunIcon) sunIcon.style.display = 'none';
+      if (moonIcon) moonIcon.style.display = 'none';
+      if (sunIcon) sunIcon.style.display = 'block';
     } else {
       document.body.classList.add('light-theme');
       localStorage.setItem('theme', 'light');
-      if (moonIcon) moonIcon.style.display = 'none';
-      if (sunIcon) sunIcon.style.display = 'block';
+      if (moonIcon) moonIcon.style.display = 'block';
+      if (sunIcon) sunIcon.style.display = 'none';
     }
   };
 }

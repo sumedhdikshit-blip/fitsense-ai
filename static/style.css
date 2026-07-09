@@ -1670,6 +1670,187 @@ body.light-theme #strengthTrendChart {
   40% { transform: scale(1.0); opacity: 1; }
 }
 
+/* Overview Page Specific - Whoop App v4.0 Aesthetic Overrides */
+body.overview-page {
+  padding: 16px !important;
+}
+
+body.overview-page .app-container {
+  max-width: 1280px;
+}
+
+body.overview-page .app-header {
+  margin-bottom: 24px !important;
+  padding-bottom: 16px !important;
+  border-bottom: 2px solid var(--border-color) !important;
+}
+
+body.overview-page .panel {
+  border: 2px solid var(--border-color) !important;
+  border-radius: 12px !important;
+  background-color: var(--panel-bg) !important;
+  box-shadow: none !important;
+  padding: 16px !important;
+  margin-bottom: 16px !important;
+}
+
+body.overview-page .ai-coach-panel,
+body.overview-page .fitness-score-panel {
+  background: var(--panel-bg) !important;
+  border: 2px solid var(--border-color) !important;
+  box-shadow: none !important;
+}
+
+body.overview-page .dashboard-grid {
+  gap: 16px !important;
+  margin-bottom: 16px !important;
+}
+
+body.overview-page .cal-detail-card,
+body.overview-page .weight-summary-bar,
+body.overview-page .stat-card,
+body.overview-page #weightGoalSection {
+  border: 2px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  background-color: var(--input-bg) !important;
+}
+
+body.overview-page .nutrition-alert,
+body.overview-page .setup-banner {
+  border: 2px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+body.overview-page .panel div[style*="background: rgba(0,0,0,0.2)"],
+body.overview-page .panel div[style*="background: rgba(0, 0, 0, 0.2)"] {
+  border: 2px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  background: var(--input-bg) !important;
+  padding: 12px !important;
+}
+
+body.overview-page .btn {
+  border: 2px solid transparent !important;
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  font-size: 11px !important;
+  letter-spacing: 0.5px !important;
+  padding: 8px 16px !important;
+  transition: transform 0.15s ease, background-color 0.15s ease !important;
+  box-shadow: none !important;
+}
+
+body.overview-page .btn:hover:not(:disabled) {
+  transform: scale(1.03) !important;
+}
+
+body.overview-page .btn-secondary {
+  border: 2px solid var(--border-color) !important;
+  background-color: var(--panel-bg) !important;
+  color: var(--text-main) !important;
+}
+
+body.overview-page .btn-secondary:hover:not(:disabled) {
+  background-color: var(--nav-hover-bg) !important;
+}
+
+body.overview-page h2 {
+  font-weight: 800 !important;
+  letter-spacing: 0.5px !important;
+  text-transform: uppercase !important;
+  font-size: 12px !important;
+  color: var(--text-muted) !important;
+  margin-bottom: 0 !important;
+}
+
+body.overview-page .panel-header {
+  margin-bottom: 16px !important;
+}
+
+/* Light Theme Inconsistency Fixes */
+body.light-theme.overview-page .weight-chart-container,
+body.light-theme.overview-page .net-calories-container {
+  background-color: var(--panel-bg) !important;
+  border: 2px solid var(--border-color) !important;
+}
+
+body.light-theme.overview-page .macros-progress-container {
+  background-color: var(--panel-bg) !important;
+  border: 2px solid var(--border-color) !important;
+}
+
+body.light-theme.overview-page .cal-detail-card,
+body.light-theme.overview-page .weight-summary-bar,
+body.light-theme.overview-page .stat-card,
+body.light-theme.overview-page #weightGoalSection,
+body.light-theme.overview-page .panel div[style*="background: rgba(0,0,0,0.2)"],
+body.light-theme.overview-page .panel div[style*="background: rgba(0, 0, 0, 0.2)"] {
+  background-color: var(--bg-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+body.light-theme.overview-page .cal-detail-card .val,
+body.light-theme.overview-page .summary-val,
+body.light-theme.overview-page #goalTargetText {
+  color: var(--text-main) !important;
+  text-shadow: none !important;
+}
+
+body.light-theme.overview-page #calsTarget {
+  color: var(--color-blue) !important;
+  text-shadow: none !important;
+}
+
+body.light-theme.overview-page .net-cal-val.deficit {
+  color: var(--color-blue) !important;
+  text-shadow: none !important;
+}
+
+body.light-theme.overview-page .net-cal-val.surplus {
+  color: var(--color-orange) !important;
+  text-shadow: none !important;
+}
+
+body.light-theme.overview-page .btn-range {
+  background-color: var(--bg-color) !important;
+  color: var(--text-muted) !important;
+  border-color: var(--border-color) !important;
+}
+
+body.light-theme.overview-page .btn-range.active {
+  background-color: var(--color-blue) !important;
+  color: #ffffff !important;
+  border-color: var(--color-blue) !important;
+}
+
+/* User dropdown light theme styling */
+body.light-theme #userDropdown {
+  background-color: var(--panel-bg) !important;
+  border: 2px solid var(--border-color) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light-theme #userDropdown a {
+  color: var(--text-main) !important;
+}
+
+body.light-theme #userDropdown a:hover {
+  background-color: var(--nav-hover-bg) !important;
+}
+
+#themeToggleBtn {
+  padding: 0 !important;
+  border-radius: 50% !important;
+}
+
+#themeToggleBtn:hover {
+  transform: scale(1.08) !important;
+  background-color: var(--nav-hover-bg) !important;
+}
+
 
 
 
