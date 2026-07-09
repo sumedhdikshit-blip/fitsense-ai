@@ -5,20 +5,42 @@ import secrets
 from datetime import datetime
 import json
 
+import bcrypt
+
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fitsense.db")
 
+def hash_password_bcrypt(password: str) -> str:
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
+
 def hash_password(password: str) -> str:
-    salt = secrets.token_hex(8)
-    hash_val = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
-    return f"{salt}${hash_val}"
+    return hash_password_bcrypt(password)
+
+def update_user_password_by_hash(old_hash: str, new_hash: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET password_hash = ? WHERE password_hash = ?", (new_hash, old_hash))
+    conn.commit()
+    conn.close()
 
 def verify_password(password: str, hashed: str) -> bool:
-    try:
-        salt, hash_val = hashed.split('$')
-        check_val = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
-        return secrets.compare_digest(hash_val, check_val)
-    except Exception:
-        return False
+    if hashed.startswith("$2b$"):
+        try:
+            return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+        except Exception:
+            return False
+    else:
+        try:
+            salt, hash_val = hashed.split('$')
+            check_val = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
+            success = secrets.compare_digest(hash_val, check_val)
+            if success:
+                new_hash = hash_password_bcrypt(password)
+                update_user_password_by_hash(hashed, new_hash)
+            return success
+        except Exception:
+            return False
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
