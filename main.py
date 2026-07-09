@@ -107,7 +107,14 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
 session_secret = os.environ.get("SESSION_SECRET")
 if not session_secret:
     raise RuntimeError("SESSION_SECRET environment variable is required")
-app.add_middleware(SessionMiddleware, secret_key=session_secret)
+
+is_production = os.environ.get("ENV", "development").lower() == "production"
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=session_secret,
+    same_site="lax",
+    https_only=is_production
+)
 
 def get_current_user_id(request: Request) -> int:
     user_id = request.session.get("user_id")
